@@ -3,7 +3,6 @@
 For sequence: 2011_09_26
 
 """
-
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -14,7 +13,6 @@ from skimage import io
 
 import imageio as smc
 plt.ion()
-
 
 IMG_HT = 375
 IMG_WDT = 1242
@@ -73,26 +71,27 @@ def timestamp_sync(path):
 
     return file_list[index_start:index_end+1]
 
-if not os.path.exists(main_path + "_sync/depth_maps_2"):
-    os.makedirs(main_path + "_sync/depth_maps_2")
+if not os.path.exists(main_path + "_sync/depth_maps"):
+    os.makedirs(main_path + "_sync/depth_maps")
 
-if not os.path.exists(main_path + "_sync/target_imgs_2"):
-    os.makedirs(main_path + "_sync/target_imgs_2")
+if not os.path.exists(main_path + "_sync/target_imgs"):
+    os.makedirs(main_path + "_sync/target_imgs")
 
-if not os.path.exists(main_path + "_sync/depth_maps_transformed_2"):
-    os.makedirs(main_path + "_sync/depth_maps_transformed_2")
+if not os.path.exists(main_path + "_sync/depth_maps_transformed"):
+    os.makedirs(main_path + "_sync/depth_maps_transformed")
 
-depth_maps_folder = main_path + "_sync/depth_maps_2"
-target_img_folder = main_path + "_sync/target_imgs_2"
-depth_maps_transformed_folder = main_path + "_sync/depth_maps_transformed_2"
+depth_maps_folder = main_path + "_sync/depth_maps"
+target_img_folder = main_path + "_sync/target_imgs"
+depth_maps_transformed_folder = main_path + "_sync/depth_maps_transformed"
 
 point_files = timestamp_sync(main_path)
 imgs_files = ns(glob.glob(main_path + "_sync/image_02/data/*.png"))
 
-angle_limit = 0.34722965035593395/2.50
-tr_limit = 0.34722965035593395*1.5
+angle_limit = 0.34722965035593395/1.25
+tr_limit = 0.34722965035593395/1.25
 
 angle_list = np.zeros((1,16), dtype = np.float32)
+pointcloud_file = open(depth_maps_transformed_folder + "/../pointcloud_list.txt", 'w')
 
 for img_name, cloud_name in zip(imgs_files, point_files):
 
@@ -119,6 +118,7 @@ for img_name, cloud_name in zip(imgs_files, point_files):
 
     to_write_tr = np.expand_dims(np.ndarray.flatten(random_transform), 0)
     angle_list = np.vstack((angle_list, to_write_tr))
+    pointcloud_file.write(cloud_name + "\n")
 
     points = np.loadtxt(cloud_name)
     points = points[:,:3]
@@ -131,7 +131,9 @@ for img_name, cloud_name in zip(imgs_files, point_files):
     img_ht = img.shape[0]
     img_wdt = img.shape[1]
 
+    # Velodyne Point Cloud와 Camera_0 센서 간의 맞춤
     points_in_cam_axis = np.matmul(R_rect_00, (np.matmul(velo_to_cam, points.T)))
+
     transformed_points = np.matmul(random_transform, points_in_cam_axis)
     # transformed_points = transformed_points[:-1,:]
 
@@ -169,10 +171,10 @@ for img_name, cloud_name in zip(imgs_files, point_files):
     pooled_img = reprojected_img
 
     print(img_name[-14:])
-    print(np.max(pooled_img), np.min(pooled_img))
 
     reconstructed_img = current_img*(pooled_img>0.)
     smc.imsave(depth_maps_folder + "/" + img_name[-14:], pooled_img)
     smc.imsave(target_img_folder + "/" + img_name[-14:], reconstructed_img)
 
-np.savetxt(depth_maps_transformed_folder + "/../angle_list_2.txt", angle_list[1:], fmt = "%.4f")
+np.savetxt(depth_maps_transformed_folder + "/../angle_list.txt", angle_list[1:], fmt = "%.4f")
+pointcloud_file.close()
