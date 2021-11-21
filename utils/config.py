@@ -56,10 +56,10 @@ camera_intrinsic_parameter = np.array([[fx_scaled, 0.0, cx_scaled],
 # 네트워크 구성 관련 파라메타
 
 network_info = dict(
-    transformation_loss_weight = 4.0,
-    depth_map_loss_weight = 1.0,
-    point_cloud_loss_weight = 40.0,
-    transformation_loss_alpha = 2.0,
+    rotation_weight=1.0,
+    translation_weight=2.0,
+    depth_map_loss_weight=1.0,
+    point_cloud_loss_weight=0.5,
     batch_size = 2,                        # batch_size take during training
     epochs = 100,                            # total number of epoch
     learning_rate = 0.001,                   # learining rate

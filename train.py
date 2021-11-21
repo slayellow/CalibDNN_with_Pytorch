@@ -25,7 +25,10 @@ summary(model, [(1, 3, 375, 1242), (1, 3, 375, 1242)], devices)
 
 K_final = torch.tensor(cf.camera_intrinsic_parameter, dtype=torch.float32).to(devices)
 
-loss_function = TotalLoss().to(devices)
+loss_function = TotalLoss(rotation_weight=cf.network_info['rotation_weight'],
+                          translation_weight=cf.network_info['translation_weight'],
+                          depth_map_loss_weight=cf.network_info['depth_map_loss_weight'],
+                          point_cloud_loss_weight=cf.network_info['point_cloud_loss_weight']).to(devices)
 
 learning_rate = cf.network_info['learning_rate']
 
