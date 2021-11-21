@@ -1,4 +1,4 @@
-import numpy as np
+from utils.mathutils_func import *
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
@@ -6,7 +6,7 @@ import torch
 import cv2
 
 
-class CalibNetDataset(Dataset):
+class CalibDNNDataset(Dataset):
     def __init__(self, path, training=True):
         """
         Args:
@@ -38,42 +38,32 @@ class CalibNetDataset(Dataset):
             idx = idx.tolist()
 
         source_map = np.float32(cv2.imread(self.source_depth_map[idx], flags=cv2.IMREAD_GRAYSCALE))
-        source_map[0:5, :] = 0.0
-        source_map[:, 0:5] = 0.0
-        source_map[source_map.shape[0] - 5:, :] = 0
-        source_map[:, source_map.shape[1] - 5:] = 0
+        source_map = np.repeat(np.expand_dims(source_map, axis=2), 3, axis=2)
         source_map = (source_map - 40.0) / 40.0
 
         target_map = np.float32(cv2.imread(self.target_depth_map[idx], flags=cv2.IMREAD_GRAYSCALE))
-        target_map[0:5, :] = 0.0
-        target_map[:, 0:5] = 0.0
-        target_map[target_map.shape[0] - 5:, :] = 0
-        target_map[:, target_map.shape[1] - 5:] = 0
         target_map = (target_map - 40.0) / 40.0
 
         source_img = np.float32(cv2.imread(self.source_image[idx], flags=cv2.IMREAD_COLOR))
         source_img = cv2.cvtColor(source_img, cv2.COLOR_BGR2RGB)
-        source_img[0:5, :, :] = 0.0
-        source_img[:, 0:5, :] = 0.0
-        source_img[source_img.shape[0] - 5:, :, :] = 0
-        source_img[:, source_img.shape[1] - 5:, :] = 0
         source_img = (source_img - 127.5) / 127.5
 
         target_img = np.float32(cv2.imread(self.target_image[idx], flags=cv2.IMREAD_COLOR))
         target_img = cv2.cvtColor(target_img, cv2.COLOR_BGR2RGB)
-        target_img[0:5, :, :] = 0.0
-        target_img[:, 0:5, :] = 0.0
-        target_img[target_img.shape[0] - 5:, :, :] = 0
-        target_img[:, target_img.shape[1] - 5:, :] = 0
         target_img = (target_img - 127.5) / 127.5
 
-        point_cloud = np.fromfile()
+        points = np.loadtxt(self.point_cloud[idx])
+        points = points[:90000, :3]
+        ones_col = np.ones(shape=(points.shape[0], 1))
+        points = np.hstack((points, ones_col)).astype(np.float32)
 
-        transformed = np.linalg.inv(self.transforms[idx].reshape(4, 4))     # transform의 역행렬
+        ground_truth_matrix = self.transforms[idx].reshape(4, 4)     # Ground Truth RT Matrix
+        rotation, translation = convert_RTMatrix_to_6DoF(ground_truth_matrix)
 
         data = {'source_depth_map': self.transform(source_map), 'target_depth_map': self.transform(target_map),
-                'source_image': self.transform(source_img), 'target_image':self.transform(target_img),
-                'transform_matrix': transformed}
+                'source_image': self.transform(source_img), 'target_image': self.transform(target_img),
+                'point_cloud': self.transform(points), 'rotation_vector': rotation, 'translation_vector': translation,
+                'transform_matrix': ground_truth_matrix}
 
         return data
 

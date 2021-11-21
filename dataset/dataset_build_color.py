@@ -3,6 +3,7 @@
 For sequence: 2011_09_26
 
 """
+import mathutils
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -45,7 +46,7 @@ parser.add_argument("path", help = "path_to_folder, end with number", type = str
 args = parser.parse_args()
 
 #
-# main_path = "/tmp/lidar_calibration_dataset/2011_09_26/2011_09_26_drive_0104"
+# main_path = "/Users/jinseokhong/data/2011_09_26/2011_09_26_drive_0001"
 
 main_path = args.path
 
@@ -70,6 +71,7 @@ def timestamp_sync(path):
     index_end = np.where(times1 == end_pt)[0][0]
 
     return file_list[index_start:index_end+1]
+
 
 if not os.path.exists(main_path + "_sync/depth_maps"):
     os.makedirs(main_path + "_sync/depth_maps")
@@ -104,24 +106,20 @@ for img_name, cloud_name in zip(imgs_files, point_files):
     tr_y = tr_limit*np.random.random_sample() - (tr_limit/2.0)
     tr_z = tr_limit*np.random.random_sample() - (tr_limit/2.0)
 
-    theta = np.sqrt(omega_x**2 + omega_y**2 + omega_z**2)
-    omega_cross = np.array([0.0, -omega_z, omega_y, omega_z, 0.0, -omega_x, -omega_y, omega_x, 0.0]).reshape(3,3)
+    r_org = mathutils.Euler((omega_x, omega_y, omega_z), 'XYZ')
+    t_org = mathutils.Vector((tr_x, tr_y, tr_z))
 
-    A = np.sin(theta)/theta
-    B = (1.0 - np.cos(theta))/(theta**2)
+    R = r_org.to_matrix()
+    R.resize_4x4()
+    T = mathutils.Matrix.Translation(t_org)
+    RT = T @ R
 
-    R = np.eye(3,3) + A*omega_cross + B*np.matmul(omega_cross, omega_cross)
-
-    T = np.array([tr_x, tr_y, tr_z]).reshape(3,1)
-
-    random_transform = np.vstack((np.hstack((R, T)), np.array([[0.0, 0.0, 0.0, 1.0]])))
-
-    to_write_tr = np.expand_dims(np.ndarray.flatten(random_transform), 0)
-    angle_list = np.vstack((angle_list, to_write_tr))
+    random_transform = np.array(RT)
+    print("data_set_build_color.py : \n", random_transform)
     pointcloud_file.write(cloud_name + "\n")
 
     points = np.loadtxt(cloud_name)
-    points = points[:,:3]
+    points = points[:90000,:3]
     ones_col = np.ones(shape=(points.shape[0],1))
     points = np.hstack((points,ones_col))
     current_img = smc.imread(img_name)
@@ -133,13 +131,8 @@ for img_name, cloud_name in zip(imgs_files, point_files):
 
     # Velodyne Point Cloud와 Camera_0 센서 간의 맞춤
     points_in_cam_axis = np.matmul(R_rect_00, (np.matmul(velo_to_cam, points.T)))
-
     transformed_points = np.matmul(random_transform, points_in_cam_axis)
-    # transformed_points = transformed_points[:-1,:]
-
     points_2d = np.matmul(K, np.matmul(cam_02_transform, transformed_points)[:-1,:])
-
-    # points_2d = np.matmul(K, points_in_cam_axis[:-1,:])
 
     Z = points_2d[2,:]
     x = (points_2d[0,:]/Z).T
@@ -155,7 +148,11 @@ for img_name, cloud_name in zip(imgs_files, point_files):
 
     smc.imsave(depth_maps_transformed_folder + "/" + img_name[-14:], reprojected_img)
 
-    points_2d = np.matmul(K, np.matmul(cam_02_transform, points_in_cam_axis)[:-1,:])
+    GT_RTMatrix = np.matmul(cam_02_transform, np.matmul(R_rect_00, velo_to_cam))
+    to_write_tr = np.expand_dims(np.ndarray.flatten(GT_RTMatrix), 0)
+    angle_list = np.vstack((angle_list, to_write_tr))
+
+    points_2d = np.matmul(K, np.matmul(GT_RTMatrix, points.T)[:-1, :])
 
     Z = points_2d[2,:]
     x = (points_2d[0,:]/Z).T
@@ -166,11 +163,9 @@ for img_name, cloud_name in zip(imgs_files, point_files):
 
     reprojected_img = np.zeros_like(img)
     for x_idx, y_idx,z_idx in zip(x,y,Z):
-        if(z_idx>0):
+        if(z_idx > 0):
             reprojected_img[int(y_idx), int(x_idx)] = z_idx
     pooled_img = reprojected_img
-
-    print(img_name[-14:])
 
     reconstructed_img = current_img*(pooled_img>0.)
     smc.imsave(depth_maps_folder + "/" + img_name[-14:], pooled_img)

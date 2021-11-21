@@ -60,10 +60,13 @@ class CalibDNN(nn.Module):
         ########################### Decouple 2 Branch #################################
         self.conv_rot = set_conv(self.channels[2], self.channels[2], kernel=1, padding=0)
         self.bn_rot = set_batch_normalization(self.channels[2])
+        self.fcl_rot = set_dense(self.channels[2], 3)
 
         self.conv_tr = set_conv(self.channels[2], self.channels[2], kernel=1, padding=0)
         self.bn_tr = set_batch_normalization(self.channels[2])
+        self.fcl_tr = set_dense(self.channels[2], 3)
         ########################### Decouple 2 Branch #################################
+        self.gap = set_global_average_pooling()
         self.dropout = set_dropout(0.5)
         self.relu = set_relu(True)
         ########################### Featrue Aggregation #################################
@@ -86,27 +89,26 @@ class CalibDNN(nn.Module):
         rot = self.conv_rot(x)
         rot = self.bn_rot(rot)
         rot = self.relu(rot)
+        rot = self.gap(rot)
         rot = rot.view(rot.size(0), -1)
-        rot_size = rot.size(1)
         rot = self.dropout(rot)
-        rot = set_dense(rot_size, 3)(rot)
+        rot = self.fcl_rot(rot)
 
         tr = self.conv_tr(x)
         tr = self.bn_tr(tr)
         tr = self.relu(tr)
+        tr = self.gap(tr)
         tr = tr.view(tr.size(0), -1)
-        tr_size = tr.size(1)
         tr = self.dropout(tr)
-        tr = set_dense(tr_size, 3)(tr)
+        tr = self.fcl_tr(tr)
 
-        x = set_concat([tr, rot], axis=1)
-
-        return x, max_pool
+        return rot, tr
 
     def get_name(self):
         return self.model_name
 
     def initialize_weights(self, init_weights):
+        # Feature Aggregation에서는 He-Normal 로 Initialization을 진행해아하지만, 여기서는 그냥 진행
         if init_weights is True:
             for m in self.modules():
                 if isinstance(m, nn.Conv2d):
