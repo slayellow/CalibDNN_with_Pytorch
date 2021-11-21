@@ -115,9 +115,9 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         target_depth_map = sample_bathced['target_depth_map']
         expected_transform = sample_bathced['transform_matrix']
         point_cloud = sample_bathced['point_cloud']
-        rotation_vector = sample_bathced['rotation_vector']
-        translation_vector = sample_bathced['translation_vector']
-        transform_matrix = sample_bathced['transform_matrix']
+        rotation_vector = sample_bathced['rotation_vector'].to(torch.float32)
+        translation_vector = sample_bathced['translation_vector'].to(torch.float32)
+        transform_matrix = sample_bathced['transform_matrix'].to(torch.float32)
 
         if gpu_check:
             source_depth_map = source_depth_map.to(devices)
@@ -146,7 +146,7 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(i_batch, len(valid_loader),
-                                                        batch_time=batch_time, data_time=data_time, loss=losses))
+                                                        batch_time=valid_batch_time, data_time=valid_data_time, loss=valid_losses))
 
     save_checkpoint({
         'epoch': epoch + 1,
