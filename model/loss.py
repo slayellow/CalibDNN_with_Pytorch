@@ -69,14 +69,12 @@ class TotalLoss(nn.Module):
             depth_error = (predicted_depth_map - gt_depth_map[i][0]).norm(dim=0)
             depth_error.clamp(100.)
             depth_map_loss += depth_error.mean()
-        total_loss = self.transformation_loss_weight * transformation_loss  + \
-                    self.depth_map_loss_weight * (depth_map_loss / gt_translation_vector.shape[0]) + \
-                    self.point_cloud_loss_weight * (point_clouds_loss / gt_translation_vector.shape[0])
+        total_loss = self.transformation_loss_weight * transformation_loss + \
+                     self.depth_map_loss_weight * (depth_map_loss / gt_translation_vector.shape[0]) + \
+                     self.point_cloud_loss_weight * (point_clouds_loss / gt_translation_vector.shape[0])
         self.loss['total_loss'] = total_loss
         self.loss['transformation_loss'] = transformation_loss
-        self.loss['depth_map_loss'] = depth_map_loss
+        self.loss['depth_map_loss'] = depth_map_loss / gt_translation_vector.shape[0]
         self.loss['point_clouds_loss'] = point_clouds_loss / gt_translation_vector.shape[0]
 
         return self.loss
-
-

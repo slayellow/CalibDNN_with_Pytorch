@@ -86,7 +86,7 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         loss['total_loss'].backward()
         optimizer.step()
 
-        losses.update(loss['total_loss'].item())
+        losses.update(loss['total_loss'].item(), source_depth_map.size(0))
         batch_time.update(time.time() - end)
         end = time.time()
 
@@ -133,7 +133,7 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         loss = loss_function(point_cloud, translation_vector, rotation_vector,
                              translation, rotation, transform_matrix, K_final, target_depth_map)
 
-        valid_losses.update(loss.item(), source_depth_map.size(0))
+        valid_losses.update(loss['total_loss'].item(), source_depth_map.size(0))
 
         valid_batch_time.update(time.time() - end)
         end = time.time()
