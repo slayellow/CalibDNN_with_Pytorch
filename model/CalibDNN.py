@@ -127,11 +127,12 @@ def CalibDNN18(layer_num):
     model = CalibDNN(layer_num)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name() + '.pth')):
-        print('Pretrained Model!')
+        print('CalibDNN18 : Pretrained Model!')
         model.initialize_weights(init_weights=False)
         checkpoint = load_weight_file(os.path.join(pretrained_path, model.get_name() + '.pth'))
         load_weight_parameter(model, checkpoint['state_dict'])
     else:
+        print('CalibDNN18 : No Pretrained Model!')
         model.initialize_weights(init_weights=True)
 
     return model

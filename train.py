@@ -4,32 +4,44 @@ from dataset.dataset import *
 from model.CalibDNN import *
 from model.loss import *
 from utils.AverageMeter import *
+import time
 
-
+print("------------ GPU Setting Start ----------------")
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = False
 
 gpu_check = is_gpu_avaliable()
 devices = torch.device("cuda") if gpu_check else torch.device("cpu")
-
+if gpu_check:
+    print("I have GPU!")
+else:
+    print("I don't have GPU!")
+print("------------ GPU Setting Finish ----------------")
+print("")
+print("------------ Dataset Setting Start ----------------")
 # dataset test code
 trainingset = CalibDNNDataset(cf.paths['dataset_path'], training=True)
-data_loader = get_loader(trainingset, batch_size=cf.network_info['batch_size'], shuffle=True, num_worker=cf.network_info['num_worker'])
-
+data_loader = get_loader(trainingset, batch_size=cf.network_info['batch_size'], shuffle=True,
+                         num_worker=cf.network_info['num_worker'])
+print("------------ Training Dataset Setting Finish ----------------")
 validationset = CalibDNNDataset(cf.paths['dataset_path'], training=False)
-valid_loader = get_loader(validationset, batch_size=cf.network_info['batch_size'], shuffle=False, num_worker=cf.network_info['num_worker'])
-
-# model test code
+valid_loader = get_loader(validationset, batch_size=cf.network_info['batch_size'], shuffle=False,
+                          num_worker=cf.network_info['num_worker'])
+print("------------ Validation Dataset Setting Finish ----------------")
+print("")
+print("------------ Model Setting Start ----------------")
 model = CalibDNN18(18).to(devices)
+print("------------ Model Summary ----------------")
 summary(model, [(1, 3, 375, 1242), (1, 3, 375, 1242)], devices)
-
+print("------------ Model Setting Finish ----------------")
+print("")
 K_final = torch.tensor(cf.camera_intrinsic_parameter, dtype=torch.float32).to(devices)
-
+print("------------ Loss Function Setting Start ----------------")
 loss_function = TotalLoss(rotation_weight=cf.network_info['rotation_weight'],
                           translation_weight=cf.network_info['translation_weight'],
                           depth_map_loss_weight=cf.network_info['depth_map_loss_weight'],
                           point_cloud_loss_weight=cf.network_info['point_cloud_loss_weight']).to(devices)
-
+print("------------ Loss Function Setting Finish ----------------")
 learning_rate = cf.network_info['learning_rate']
 
 optimizer = set_Adam(model, learning_rate=learning_rate)
@@ -42,9 +54,10 @@ if os.path.isfile(os.path.join(pretrained_path, model.get_name() + '.pth')):
     load_weight_parameter(model, checkpoint['state_dict'])
     load_weight_parameter(optimizer, checkpoint['optimizer'])
 else:
-    print("No Pretrained Model")
+    print("Pretrained Parameter Open : No Pretrained Model")
     start_epoch = 0
-
+print("")
+print("------------ Train Start ----------------")
 for epoch in range(start_epoch, cf.network_info['epochs']):
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -81,10 +94,12 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
 
         optimizer.zero_grad()
 
+        model_end = time.time()
         rotation, translation = model(source_image, source_depth_map)
+        print("Model Inference Time : ", time.time() - model_end)
 
         loss = loss_function(point_cloud, translation_vector, rotation_vector,
-                translation, rotation, transform_matrix, K_final, target_depth_map)
+                             translation, rotation, transform_matrix, K_final, target_depth_map)
 
         loss['total_loss'].backward()
         optimizer.step()
@@ -97,8 +112,9 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(epoch+1, i_batch, len(data_loader),
-                                                        batch_time=batch_time, data_time=data_time, loss=losses))
+                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(epoch + 1, i_batch, len(data_loader),
+                                                                  batch_time=batch_time, data_time=data_time,
+                                                                  loss=losses))
 
     valid_batch_time = AverageMeter()
     valid_data_time = AverageMeter()
@@ -146,13 +162,14 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(i_batch, len(valid_loader),
-                                                        batch_time=valid_batch_time, data_time=valid_data_time, loss=valid_losses))
+                                                                  batch_time=valid_batch_time,
+                                                                  data_time=valid_data_time, loss=valid_losses))
 
     save_checkpoint({
         'epoch': epoch + 1,
-        'arch' : model.get_name(),
+        'arch': model.get_name(),
         'state_dict': model.state_dict(),
-        'optimizer': optimizer.state_dict()}, False, os.path.join(pretrained_path, model.get_name()),'pth')
+        'optimizer': optimizer.state_dict()}, False, os.path.join(pretrained_path, model.get_name()), 'pth')
 
     # Learning Rate 조절하기
     lr = learning_rate - 0.00001  # ResNet Lerarning Rate

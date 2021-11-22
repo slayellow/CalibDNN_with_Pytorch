@@ -1,3 +1,5 @@
+import numpy as np
+
 from utils.mathutils_func import *
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
@@ -34,6 +36,7 @@ class CalibDNNDataset(Dataset):
         return len(self.dataset)
 
     def __getitem__(self, idx):
+        self.point_cloud_list = np.zeros((0, 4), dtype=np.float32)
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
@@ -52,8 +55,11 @@ class CalibDNNDataset(Dataset):
         target_img = cv2.cvtColor(target_img, cv2.COLOR_BGR2RGB)
         target_img = (target_img - 127.5) / 127.5
 
-        points = np.loadtxt(self.point_cloud[idx])
+        points = np.fromfile(self.point_cloud[idx], sep=' ')
+        points = points.reshape((-1, 4))
         points = points[:90000, :3]
+        if points.shape[0] < 90000:
+            points = np.vstack((points, np.zeros((90000-points.shape[0], 3))))
         ones_col = np.ones(shape=(points.shape[0], 1))
         points = np.hstack((points, ones_col)).astype(np.float32)
 

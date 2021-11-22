@@ -176,11 +176,12 @@ def DepthNet18(layer_num, classes):
     model = DepthNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
-        print('Pretrained Model!')
+        print('DepthNet18 : Pretrained Model!')
         model.initialize_weights(init_weights=False)
         checkpoint = load_weight_file(os.path.join(pretrained_path, model.get_name() + '.pth'))
         load_weight_parameter(model, checkpoint['state_dict'])
     else:
+        print('DepthNet18 : No Pretrained Model!')
         model.initialize_weights(init_weights=True)
 
     return model

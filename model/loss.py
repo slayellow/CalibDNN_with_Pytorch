@@ -20,9 +20,8 @@ class TotalLoss(nn.Module):
                 predicted_translation_vector, predicted_rotation_vector, gt_rt_matrix, k_matrix, gt_depth_map):
 
         # Transformation Loss
-        loss_translation = self.translation_loss(predicted_translation_vector, gt_translation_vector).sum(
-            1).mean()
-        loss_rotation = self.rotation_loss(predicted_rotation_vector, torch.rad2deg(gt_rotation_vector)).sum(1).mean()
+        loss_translation = self.translation_loss(predicted_translation_vector, gt_translation_vector).sum(1).mean()
+        loss_rotation = self.rotation_loss(predicted_rotation_vector, gt_rotation_vector).sum(1).mean()
         transformation_loss = (loss_translation * self.translation_weight) + (loss_rotation * self.rotation_weight)
 
         # Depth Map Loss
@@ -31,24 +30,26 @@ class TotalLoss(nn.Module):
         # PointCloud Loss
         point_clouds_loss = torch.tensor([0.0], dtype=torch.float32).to(predicted_rotation_vector.device)
         for i in range(len(point_clouds)):
-            point_cloud_gt = torch.mm(gt_rt_matrix[i], point_clouds[i][0].t())
+            point_cloud_gt = torch.mm(gt_rt_matrix[i], point_clouds[i][0].t()).to(predicted_rotation_vector.device)
 
-            theta = torch.sqrt(torch.deg2rad(predicted_rotation_vector[i][0]) ** 2 +
-                               torch.deg2rad(predicted_rotation_vector[i][1]) ** 2 +
-                               torch.deg2rad(predicted_rotation_vector[i][2]) ** 2)
-            omega_cross = torch.tensor([[0.0, -torch.deg2rad(predicted_rotation_vector[i][2]),
-                                         torch.deg2rad(predicted_rotation_vector[i][1])],
-                                        [torch.deg2rad(predicted_rotation_vector[i][2]), 0.0,
-                                         -torch.deg2rad(predicted_rotation_vector[i][0])],
-                                        [-torch.deg2rad(predicted_rotation_vector[i][1]),
-                                         torch.deg2rad(predicted_rotation_vector[i][0]), 0.0]])
+            theta = torch.sqrt(predicted_rotation_vector[i][0] ** 2 +
+                               predicted_rotation_vector[i][1] ** 2 +
+                               predicted_rotation_vector[i][2] ** 2).to(predicted_rotation_vector.device)
+            omega_cross = torch.tensor([[0.0, -predicted_rotation_vector[i][2],
+                                         predicted_rotation_vector[i][1]],
+                                        [predicted_rotation_vector[i][2], 0.0,
+                                         -predicted_rotation_vector[i][0]],
+                                        [-predicted_rotation_vector[i][1],
+                                         predicted_rotation_vector[i][0], 0.0]]).to(predicted_rotation_vector.device)
             A = torch.sin(theta) / theta
             B = (1.0 - torch.cos(theta)) / (theta ** 2)
-            R = torch.eye(3, 3) + A * omega_cross + B * torch.mm(omega_cross, omega_cross)
+            R = torch.eye(3, 3).to(predicted_rotation_vector.device) + A * omega_cross + B * \
+                torch.mm(omega_cross, omega_cross).to(predicted_rotation_vector.device)
             T = torch.tensor([[predicted_translation_vector[i][0]],
                               [predicted_translation_vector[i][1]],
-                              [predicted_translation_vector[i][2]]])
-            predicted_rt_matrix = torch.vstack((torch.hstack((R, T)), torch.tensor([[0.0, 0.0, 0.0, 1.0]])))
+                              [predicted_translation_vector[i][2]]]).to(predicted_rotation_vector.device)
+            predicted_rt_matrix = torch.vstack((torch.hstack((R, T)),
+                                                torch.tensor([[0.0, 0.0, 0.0, 1.0]]).to(predicted_rotation_vector.device)))
 
             point_cloud_predicted = torch.mm(predicted_rt_matrix, point_clouds[i][0].t())
 
@@ -65,6 +66,7 @@ class TotalLoss(nn.Module):
             y = torch.clamp(y, 0.0, cf.camera_info['HEIGHT'] - 1)
 
             predicted_depth_map = torch.zeros_like(gt_depth_map[i][0])
+            # Low Speed ( Modefied Need )
             for x_idx, y_idx, z_idx in zip(x, y, Z):
                 if z_idx > 0:
                     predicted_depth_map[int(y_idx), int(x_idx)] = z_idx

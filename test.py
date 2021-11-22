@@ -2,6 +2,15 @@ import mathutils
 import numpy as np
 import math
 
+
+point_cloud_list = np.zeros((90000, 4))
+point_cloud = np.ones((65535, 4))
+point_cloud_list = point_cloud
+point_cloud_list = point_cloud_list[:90000, :4]
+if point_cloud_list.shape[0] < 90000:
+    point_cloud_list = np.vstack((point_cloud_list, np.zeros((90000-point_cloud_list.shape[0], 4))))
+print(point_cloud_list)
+
 omega_x = 0     # theta
 omega_y = 45
 omega_z = 0
