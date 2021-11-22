@@ -5,7 +5,11 @@ import glob, os
 import argparse
 
 
-dataset_path = "/Users/jinseokhong/data/2011_09_26/"
+parser = argparse.ArgumentParser(description="Create Lidar Dataset Parser file")
+parser.add_argument("path", help = "path_to_folder", type = str)
+args = parser.parse_args()
+
+dataset_path = args.path
 
 #Picking up all sync folders
 folder_names = ns(glob.glob(dataset_path +"*_sync" + os.path.sep))
@@ -67,9 +71,6 @@ for fn in folder_names:
     print(dataset_3.shape)
 
     dataset_array_3 = np.vstack((dataset_array_3, dataset_3))
-
-
-
 
 dataset_array = dataset_array[1:]
 dataset_array_2 = dataset_array_2[1:]

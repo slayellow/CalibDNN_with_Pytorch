@@ -28,7 +28,7 @@ N=4
 for id in {0..44} # 44
 do
    ((i=i%N)); ((i++==0)) && wait
-   task_unzip ${array[$id]} &
+   task_preprocessing ${array[$id]} &
 done
 )
 
