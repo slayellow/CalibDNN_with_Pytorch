@@ -106,7 +106,7 @@ for img_name, cloud_name in zip(imgs_files, point_files):
     tr_y = tr_limit*np.random.random_sample() - (tr_limit/2.0)
     tr_z = tr_limit*np.random.random_sample() - (tr_limit/2.0)
 
-    r_org = mathutils.Euler((omega_x, omega_y, omega_z), 'XYZ')
+    r_org = mathutils.Euler((omega_x, omega_y, omega_z))
     t_org = mathutils.Vector((tr_x, tr_y, tr_z))
 
     R = r_org.to_matrix()

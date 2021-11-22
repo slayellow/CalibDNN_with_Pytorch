@@ -3,7 +3,7 @@ import numpy as np
 
 
 def convert_6DoF_to_RTMatrix(rotation, translation):
-    R = mathutils.Euler((rotation[0], rotation[1], rotation[2]), 'XYZ')
+    R = mathutils.Euler((rotation[0], rotation[1], rotation[2]))
     T = mathutils.Vector((translation[0], translation[1], translation[2]))
 
     R = R.to_matrix()

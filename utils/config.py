@@ -2,23 +2,23 @@ import numpy as np
 
 
 dataprocessing = dict(
-    dataset_path = "/Users/jinseokhong/data/2011_09_26/",
+    dataset_path = "/data/2011_09_26/",
 )
 
+
+paths = dict(
+    dataset_path = "/home/HONG/CalibDNN_with_Pytorch/dataset/parsed_set.txt",
+    pretrained_path = "/home/HONG/PretrainedParameter/CalibDNN/",
+    training_img_result_path = "/home/HONG/CalibDNN_Result",
+    validation_img_result_path = "/home/HONG/CalibDNN_Result"
+)
 
 # paths = dict(
-#     dataset_path = "/home/HONG/CalibNet_with_Pytorch/DataManagement/parsed_set.txt",
-#     pretrained_path = "/home/HONG/PretrainedParameter",
-#     training_img_result_path = "/home/HONG/CalibNet_Result",
-#     validation_img_result_path = "/home/HONG/CalibNet_Result"
+#     dataset_path = "/Users/jinseokhong/PythonProject/CalibDNN_with_Pytorch/dataset/parsed_set.txt",
+#     pretrained_path = "/Users/jinseokhong/data/Result",
+#     training_img_result_path = "/Users/jinseokhong/data/Result",
+#     validation_img_result_path = "/Users/jinseokhong/data/Result"
 # )
-#
-paths = dict(
-    dataset_path = "/Users/jinseokhong/PythonProject/CalibDNN_with_Pytorch/dataset/parsed_set.txt",
-    pretrained_path = "/Users/jinseokhong/data/Result",
-    training_img_result_path = "/Users/jinseokhong/data/Result",
-    validation_img_result_path = "/Users/jinseokhong/data/Result"
-)
 
 
 # 카메라 관련 파라메타
@@ -60,10 +60,10 @@ network_info = dict(
     translation_weight=2.0,
     depth_map_loss_weight=1.0,
     point_cloud_loss_weight=0.5,
-    batch_size = 2,                        # batch_size take during training
+    batch_size = 24,                        # batch_size take during training
     epochs = 100,                            # total number of epoch
     learning_rate = 0.001,                   # learining rate
     beta1 = 0.9,                            # momentum term for Adam Optimizer
-    freq_print = 1,
-    num_worker = 0
+    freq_print = 10,
+    num_worker = 4
 )
