@@ -2,6 +2,7 @@ import torch
 from torch import nn as nn
 import utils.config as cf
 from utils.mathutils_func import *
+import time
 
 
 class TotalLoss(nn.Module):
@@ -49,7 +50,8 @@ class TotalLoss(nn.Module):
                               [predicted_translation_vector[i][1]],
                               [predicted_translation_vector[i][2]]]).to(predicted_rotation_vector.device)
             predicted_rt_matrix = torch.vstack((torch.hstack((R, T)),
-                                                torch.tensor([[0.0, 0.0, 0.0, 1.0]]).to(predicted_rotation_vector.device)))
+                                                torch.tensor([[0.0, 0.0, 0.0, 1.0]]).to(
+                                                    predicted_rotation_vector.device)))
 
             point_cloud_predicted = torch.mm(predicted_rt_matrix, point_clouds[i][0].t())
 
@@ -57,19 +59,25 @@ class TotalLoss(nn.Module):
             error.clamp(100.)
             point_clouds_loss += error.mean()
 
-            points_2d_gt = torch.mm(k_matrix, point_cloud_predicted[:-1, :])
-            Z = points_2d_gt[2, :]
-            x = (points_2d_gt[0, :] / Z).t()
-            y = (points_2d_gt[1, :] / Z).t()
+            points_2d_predicted = torch.mm(k_matrix, point_cloud_predicted[:-1, :])
+            Z = points_2d_predicted[2, :]
+            x = (points_2d_predicted[0, :] / Z).t()
+            y = (points_2d_predicted[1, :] / Z).t()
 
-            x = torch.clamp(x, 0.0, cf.camera_info["WIDTH"] - 1)
-            y = torch.clamp(y, 0.0, cf.camera_info['HEIGHT'] - 1)
+            x = torch.clamp(x, 0.0, cf.camera_info["WIDTH"] - 1).to(torch.long)
+            y = torch.clamp(y, 0.0, cf.camera_info['HEIGHT'] - 1).to(torch.long)
 
+            # High Speed ( 2021. 11. 25. )
+            Z_Index = torch.where(Z > 0)
             predicted_depth_map = torch.zeros_like(gt_depth_map[i][0])
+            predicted_depth_map[y[Z_Index], x[Z_Index]] = Z[Z_Index]
+
             # Low Speed ( Modefied Need )
-            for x_idx, y_idx, z_idx in zip(x, y, Z):
-                if z_idx > 0:
-                    predicted_depth_map[int(y_idx), int(x_idx)] = z_idx
+            # predicted_depth_map = torch.zeros_like(gt_depth_map[i][0])
+            # for x_idx, y_idx, z_idx in zip(x, y, Z):
+            #     if z_idx > 0:
+            #         predicted_depth_map[int(y_idx), int(x_idx)] = z_idx
+
             depth_error = (predicted_depth_map - gt_depth_map[i][0]).norm(dim=0)
             depth_error.clamp(100.)
             depth_map_loss += depth_error.mean()
