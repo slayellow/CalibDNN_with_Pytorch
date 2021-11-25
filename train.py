@@ -45,6 +45,7 @@ print("------------ Loss Function Setting Finish ----------------")
 learning_rate = cf.network_info['learning_rate']
 
 optimizer = set_Adam(model, learning_rate=learning_rate)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20, 50, 70], gamma=0.5)
 
 pretrained_path = cf.paths['pretrained_path']
 if os.path.isfile(os.path.join(pretrained_path, model.get_name() + '.pth')):
@@ -62,9 +63,9 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
-
-    if is_gpu_avaliable():
-        torch.cuda.empty_cache()  # 사용하지 않으면서 캐시된 메모리들을 해제해준다.
+    trans_loss = AverageMeter()
+    depth_loss = AverageMeter()
+    point_loss = AverageMeter()
 
     model.train()
 
@@ -103,16 +104,27 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         optimizer.step()
 
         losses.update(loss['total_loss'].item(), source_depth_map.size(0))
+        trans_loss.update(loss['transformation_loss'].item(), source_depth_map.size(0))
+        depth_loss.update(loss['depth_map_loss'].item(), source_depth_map.size(0))
+        point_loss.update(loss['point_clouds_loss'].item(), source_depth_map.size(0))
         batch_time.update(time.time() - end)
         end = time.time()
 
         if i_batch % cf.network_info['freq_print'] == 0:
-            print('Epoch: [{0}][{1}/{2}]\t'
-                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(epoch + 1, i_batch, len(data_loader),
-                                                                  batch_time=batch_time, data_time=data_time,
-                                                                  loss=losses))
+            print('Epoch: [{0}][{1}/{2}] \t'
+                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f}) \t'
+                  'Data {data_time.val:.3f} ({data_time.avg:.3f}) \t'
+                  'Total Loss {loss.val:.4f} ({loss.avg:.4f}) \t'
+                  'Transformation Loss {trans_loss.val:.4f} ({trans_loss.avg:.4f}) \t'
+                  'Depth Map Loss {depth_loss.val:.4f} ({depth_loss.avg:.4f}) \t'
+                  'Point Cloud Loss {point_loss.val:.4f} ({point_loss.avg:.4f}) \t'.format(epoch + 1, i_batch,
+                                                                                           len(data_loader),
+                                                                                           batch_time=batch_time,
+                                                                                           data_time=data_time,
+                                                                                           loss=losses,
+                                                                                           trans_loss=trans_loss,
+                                                                                           depth_loss=depth_loss,
+                                                                                           point_loss=point_loss))
 
     valid_batch_time = AverageMeter()
     valid_data_time = AverageMeter()
@@ -169,9 +181,4 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         'state_dict': model.state_dict(),
         'optimizer': optimizer.state_dict()}, False, os.path.join(pretrained_path, model.get_name()), 'pth')
 
-    # Learning Rate 조절하기
-    lr = learning_rate - 0.00001  # ResNet Lerarning Rate
-    # lr = self.learning_rate
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
 print("Train Finished!!")
