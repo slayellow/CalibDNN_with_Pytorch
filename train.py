@@ -94,9 +94,7 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
 
         optimizer.zero_grad()
 
-        model_end = time.time()
         rotation, translation = model(source_image, source_depth_map)
-        print("Model Inference Time : ", time.time() - model_end)
 
         loss = loss_function(point_cloud, translation_vector, rotation_vector,
                              translation, rotation, transform_matrix, K_final, target_depth_map)
