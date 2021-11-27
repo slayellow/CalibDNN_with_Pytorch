@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
 import torch
 import cv2
+import imageio as smc
 
 
 class CalibDNNDataset(Dataset):
@@ -45,14 +46,14 @@ class CalibDNNDataset(Dataset):
         source_map[0:5, :] = 0.0
         source_map[:, 0:5] = 0.0
         source_map[source_map.shape[0] - 5:, :] = 0.0
-        source_map[:, source_map.shape[0] - 5:] = 0.0
+        source_map[:, source_map.shape[1] - 5:] = 0.0
         source_map = (source_map - 40.0) / 40.0
 
         target_map = np.float32(cv2.imread(self.target_depth_map[idx], flags=cv2.IMREAD_GRAYSCALE))
         target_map[0:5, :] = 0.0
         target_map[:, 0:5] = 0.0
         target_map[target_map.shape[0] - 5:, :] = 0.0
-        target_map[:, target_map.shape[0] - 5:] = 0.0
+        target_map[:, target_map.shape[1] - 5:] = 0.0
         target_map = (target_map - 40.0) / 40.0
 
         source_img = np.float32(cv2.imread(self.source_image[idx], flags=cv2.IMREAD_COLOR))
@@ -60,7 +61,7 @@ class CalibDNNDataset(Dataset):
         source_img[0:5, :] = 0.0
         source_img[:, 0:5] = 0.0
         source_img[source_img.shape[0] - 5:, :] = 0.0
-        source_img[:, source_img.shape[0] - 5:] = 0.0
+        source_img[:, source_img.shape[1] - 5:] = 0.0
         source_img = (source_img - 127.5) / 127.5
 
         target_img = np.float32(cv2.imread(self.target_image[idx], flags=cv2.IMREAD_COLOR))
@@ -68,7 +69,7 @@ class CalibDNNDataset(Dataset):
         target_img[0:5, :] = 0.0
         target_img[:, 0:5] = 0.0
         target_img[target_img.shape[0] - 5:, :] = 0.0
-        target_img[:, target_img.shape[0] - 5:] = 0.0
+        target_img[:, target_img.shape[1] - 5:] = 0.0
         target_img = (target_img - 127.5) / 127.5
 
         points = np.fromfile(self.point_cloud[idx], sep=' ')

@@ -9,8 +9,8 @@ dataprocessing = dict(
 paths = dict(
     dataset_path = "/home/HONG/CalibDNN_with_Pytorch/dataset/parsed_set.txt",
     pretrained_path = "/home/HONG/PretrainedParameter/CalibDNN/",
-    training_img_result_path = "/home/HONG/CalibDNN_Result",
-    validation_img_result_path = "/home/HONG/CalibDNN_Result"
+    training_img_result_path = "/home/HONG/CalibDNN_Result/training",
+    validation_img_result_path = "/home/HONG/CalibDNN_Result/valid"
 )
 
 # paths = dict(
@@ -51,6 +51,8 @@ cy_scaled = -1 * 2 * (camera_info['cy'] - 1.0) / np.float32(camera_info['HEIGHT'
 camera_intrinsic_parameter = np.array([[fx_scaled, 0.0, cx_scaled],
                                        [0.0, fy_scaled, cy_scaled],
                                        [0.0, 0.0, 1.0]], dtype= np.float32)
+
+K = np.array([7.215377e+02, 0.000000e+00, 6.095593e+02, 0.000000e+00, 7.215377e+02, 1.728540e+02, 0.000000e+00, 0.000000e+00, 1.000000e+00]).reshape(3,3)
 
 
 # 네트워크 구성 관련 파라메타

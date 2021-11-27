@@ -13,15 +13,16 @@ class TotalLoss(nn.Module):
         self.rotation_weight = rotation_weight
         self.translation_weight = translation_weight
         self.depth_map_loss_weight = depth_map_loss_weight
-        self.translation_loss = nn.SmoothL1Loss(reduction='none')
+        self.translation_loss = nn.MSELoss()
         self.point_cloud_loss_weight = point_cloud_loss_weight
+        self.depth_map_loss = nn.MSELoss()
         self.loss = {}
 
     def forward(self, point_clouds, gt_translation_vector, gt_rotation_vector,
                 predicted_translation_vector, predicted_rotation_vector, gt_rt_matrix, k_matrix, gt_depth_map):
 
         # Transformation Loss
-        loss_translation = self.translation_loss(predicted_translation_vector, gt_translation_vector).sum(1).mean()
+        loss_translation = self.translation_loss(predicted_translation_vector, gt_translation_vector)
         loss_rotation = quaternion_distance(predicted_rotation_vector, gt_rotation_vector,
                                             predicted_rotation_vector.device).mean()
         transformation_loss = (loss_translation * self.translation_weight) + (loss_rotation * self.rotation_weight)
@@ -38,32 +39,10 @@ class TotalLoss(nn.Module):
             T_predicted = tvector2mat(predicted_translation_vector[i])
             RT_predicted = torch.mm(T_predicted, R_predicted)
 
-            point_cloud_out = rotate_forward(point_clouds[i][0].t(), RT_predicted)
+            point_cloud_out = torch.mm(RT_predicted, point_clouds[i][0].t())
             error = (point_cloud_out - point_cloud_gt).norm(dim=0)
             error.clamp(100.)
             point_clouds_loss += error.mean()
-
-            # theta = torch.sqrt(predicted_rotation_vector[i][0] ** 2 +
-            #                    predicted_rotation_vector[i][1] ** 2 +
-            #                    predicted_rotation_vector[i][2] ** 2).to(predicted_rotation_vector.device)
-            # omega_cross = torch.tensor([[0.0, -predicted_rotation_vector[i][2],
-            #                              predicted_rotation_vector[i][1]],
-            #                             [predicted_rotation_vector[i][2], 0.0,
-            #                              -predicted_rotation_vector[i][0]],
-            #                             [-predicted_rotation_vector[i][1],
-            #                              predicted_rotation_vector[i][0], 0.0]]).to(predicted_rotation_vector.device)
-            # A = torch.sin(theta) / theta
-            # B = (1.0 - torch.cos(theta)) / (theta ** 2)
-            # R = torch.eye(3, 3).to(predicted_rotation_vector.device) + A * omega_cross + B * \
-            #     torch.mm(omega_cross, omega_cross).to(predicted_rotation_vector.device)
-            # T = torch.tensor([[predicted_translation_vector[i][0]],
-            #                   [predicted_translation_vector[i][1]],
-            #                   [predicted_translation_vector[i][2]]]).to(predicted_rotation_vector.device)
-            # predicted_rt_matrix = torch.vstack((torch.hstack((R, T)),
-            #                                     torch.tensor([[0.0, 0.0, 0.0, 1.0]]).to(
-            #                                         predicted_rotation_vector.device)))
-            #
-            # point_cloud_predicted = torch.mm(predicted_rt_matrix, point_clouds[i][0].t())
 
             points_2d_predicted = torch.mm(k_matrix, point_cloud_out[:-1, :])
             Z = points_2d_predicted[2, :]
@@ -81,10 +60,10 @@ class TotalLoss(nn.Module):
             predicted_depth_map[:, 0:5] = 0.0
             predicted_depth_map[predicted_depth_map.shape[0] - 5:, :] = 0.0
             predicted_depth_map[:, predicted_depth_map.shape[0] - 5:] = 0.0
+            predicted_depth_map = (predicted_depth_map - 40.0) / 40.0
 
-            depth_error = (predicted_depth_map - gt_depth_map[i][0]).norm(dim=0)
-            depth_error.clamp(100.)
-            depth_map_loss += depth_error.mean()
+            depth_error = self.depth_map_loss(predicted_depth_map, gt_depth_map[i][0])
+            depth_map_loss += depth_error
         total_loss = (1 - self.point_cloud_loss_weight) * transformation_loss + \
                      self.depth_map_loss_weight * (depth_map_loss / gt_translation_vector.shape[0]) + \
                      self.point_cloud_loss_weight * (point_clouds_loss / gt_translation_vector.shape[0])
