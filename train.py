@@ -126,6 +126,7 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
                                                                                            depth_loss=depth_loss,
                                                                                            point_loss=point_loss))
 
+    scheduler.step()
     valid_batch_time = AverageMeter()
     valid_data_time = AverageMeter()
     valid_losses = AverageMeter()

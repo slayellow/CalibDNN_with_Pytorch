@@ -42,17 +42,33 @@ class CalibDNNDataset(Dataset):
 
         source_map = np.float32(cv2.imread(self.source_depth_map[idx], flags=cv2.IMREAD_GRAYSCALE))
         source_map = np.repeat(np.expand_dims(source_map, axis=2), 3, axis=2)
+        source_map[0:5, :] = 0.0
+        source_map[:, 0:5] = 0.0
+        source_map[source_map.shape[0] - 5:, :] = 0.0
+        source_map[:, source_map.shape[0] - 5:] = 0.0
         source_map = (source_map - 40.0) / 40.0
 
         target_map = np.float32(cv2.imread(self.target_depth_map[idx], flags=cv2.IMREAD_GRAYSCALE))
+        target_map[0:5, :] = 0.0
+        target_map[:, 0:5] = 0.0
+        target_map[target_map.shape[0] - 5:, :] = 0.0
+        target_map[:, target_map.shape[0] - 5:] = 0.0
         target_map = (target_map - 40.0) / 40.0
 
         source_img = np.float32(cv2.imread(self.source_image[idx], flags=cv2.IMREAD_COLOR))
         source_img = cv2.cvtColor(source_img, cv2.COLOR_BGR2RGB)
+        source_img[0:5, :] = 0.0
+        source_img[:, 0:5] = 0.0
+        source_img[source_img.shape[0] - 5:, :] = 0.0
+        source_img[:, source_img.shape[0] - 5:] = 0.0
         source_img = (source_img - 127.5) / 127.5
 
         target_img = np.float32(cv2.imread(self.target_image[idx], flags=cv2.IMREAD_COLOR))
         target_img = cv2.cvtColor(target_img, cv2.COLOR_BGR2RGB)
+        target_img[0:5, :] = 0.0
+        target_img[:, 0:5] = 0.0
+        target_img[target_img.shape[0] - 5:, :] = 0.0
+        target_img[:, target_img.shape[0] - 5:] = 0.0
         target_img = (target_img - 127.5) / 127.5
 
         points = np.fromfile(self.point_cloud[idx], sep=' ')

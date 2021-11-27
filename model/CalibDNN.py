@@ -60,7 +60,7 @@ class CalibDNN(nn.Module):
         ########################### Decouple 2 Branch #################################
         self.conv_rot = set_conv(self.channels[2], self.channels[2], kernel=1, padding=0)
         self.bn_rot = set_batch_normalization(self.channels[2])
-        self.fcl_rot = set_dense(self.channels[2], 3)
+        self.fcl_rot = set_dense(self.channels[2], 4)
 
         self.conv_tr = set_conv(self.channels[2], self.channels[2], kernel=1, padding=0)
         self.bn_tr = set_batch_normalization(self.channels[2])
