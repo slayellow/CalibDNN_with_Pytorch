@@ -10,7 +10,8 @@ paths = dict(
     dataset_path = "/home/HONG/CalibDNN_with_Pytorch/dataset/parsed_set.txt",
     pretrained_path = "/home/HONG/PretrainedParameter/CalibDNN/",
     training_img_result_path = "/home/HONG/CalibDNN_Result/training",
-    validation_img_result_path = "/home/HONG/CalibDNN_Result/valid"
+    validation_img_result_path = "/home/HONG/CalibDNN_Result/valid",
+    inference_img_result_path = "/home/HONG/CalibDNN_Result/inference"
 )
 
 # paths = dict(

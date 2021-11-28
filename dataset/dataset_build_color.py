@@ -41,14 +41,14 @@ cam_02_transform = np.array([1.0, 0.0, 0.0, 4.485728e+01/fx,
                              0.0, 0.0, 0.0, 1.0]).reshape(4,4)
 
 
-parser = argparse.ArgumentParser(description="Create Lidar Dataset")
-parser.add_argument("path", help = "path_to_folder, end with number", type = str)
-args = parser.parse_args()
+# parser = argparse.ArgumentParser(description="Create Lidar Dataset")
+# parser.add_argument("path", help = "path_to_folder, end with number", type = str)
+# args = parser.parse_args()
 
 #
-# main_path = "/Users/jinseokhong/data/2011_09_26/2011_09_26_drive_0001"
+main_path = "/Users/jinseokhong/data/2011_09_26/2011_09_26_drive_0001"
 
-main_path = args.path
+# main_path = args.path
 
 def timestamp_sync(path):
     txt1 = np.loadtxt(path + "_extract/velodyne_points/timestamps.txt", dtype = str)
