@@ -248,11 +248,8 @@ def mat2xyzrpy(rotmatrix):
     roll = math.atan2(-rotmatrix[1, 2], rotmatrix[2, 2])
     pitch = math.asin ( rotmatrix[0, 2])
     yaw = math.atan2(-rotmatrix[0, 1], rotmatrix[0, 0])
-    x = rotmatrix[:3, 3][0]
-    y = rotmatrix[:3, 3][1]
-    z = rotmatrix[:3, 3][2]
 
-    return torch.tensor([x, y, z, roll, pitch, yaw], device=rotmatrix.device, dtype=rotmatrix.dtype)
+    return np.abs(roll) , np.abs(pitch), np.abs(yaw)
 
 
 def to_rotation_matrix(R, T):

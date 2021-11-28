@@ -75,6 +75,7 @@ for i_batch, sample_bathced in enumerate(valid_loader):
     source_map = source_depth_map[0]
     gt_depth_map = target_depth_map[0]
     current_img = source_image[0]
+    predicted_img = source_image[0]
     point_clouds = point_cloud[0]
     predicted_translation_vector = translation[0]
     predicted_rotation_vector = rotation[0]
@@ -124,8 +125,10 @@ for i_batch, sample_bathced in enumerate(valid_loader):
     predicted_depth_map[:, predicted_depth_map.shape[1] - 5:] = 0.0
     predicted_depth_map = torch.unsqueeze(predicted_depth_map, dim=2)
     predicted_depth_map = predicted_depth_map.repeat(1,1,3)
-    current_img[y[Z_Index], x[Z_Index]] = torch.Tensor([0, 0, 255]).to(devices)
-    reconstructed_img = current_img
+    predicted_img = predicted_img * 127.5 + 127.5
+    predicted_img = predicted_img.permute(1,2,0)
+    predicted_img[y[Z_Index], x[Z_Index]] = torch.Tensor([0, 0, 255]).to(devices)
+    reconstructed_img = predicted_img
     # reconstructed_img = current_img * (predicted_depth_map > 0.)
     smc.imsave(cf.paths["inference_img_result_path"] + "/iteration_" + str(i_batch) + "_predicted.png",
                reconstructed_img.detach().cpu().numpy().astype(np.uint8))
