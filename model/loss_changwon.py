@@ -33,7 +33,12 @@ class TotalLoss(nn.Module):
         # PointCloud Loss
         point_clouds_loss = torch.tensor([0.0], dtype=torch.float32).to(predicted_rotation_vector.device)
         for i in range(len(point_clouds)):
-            point_cloud_gt = torch.mm(gt_rt_matrix[i], point_clouds[i][0].t()).to(predicted_rotation_vector.device)
+            R_GT = quat2mat(gt_rotation_vector[i])
+            T_GT = tvector2mat(gt_translation_vector[i])
+            RT_GT = torch.mm(T_GT, R_GT)
+            point_cloud_gt = torch.mm(RT_GT, point_clouds[i][0].t())
+
+            # point_cloud_gt = torch.mm(gt_rt_matrix[i], point_clouds[i][0].t()).to(predicted_rotation_vector.device)
 
             R_predicted = quat2mat(predicted_rotation_vector[i])
             T_predicted = tvector2mat(predicted_translation_vector[i])

@@ -82,10 +82,12 @@ class CalibDNNDataset_Changwon(Dataset):
         points = np.fromfile(self.point_cloud[idx], sep=' ')
         points = points.reshape((-1, 4))
         points = points[:230400, :3]
-        if points.shape[0] < 230400:
-            points = np.vstack((points, np.zeros((230400-points.shape[0], 3))))
         ones_col = np.ones(shape=(points.shape[0], 1))
-        points = np.hstack((points, ones_col)).astype(np.float32)
+        points = np.hstack((points, ones_col))
+        if points.shape[0] < 230400:
+            points = np.vstack((points, np.zeros((230400-points.shape[0], 4))))
+        points = points.astype(np.float32)
+
 
         ground_truth_matrix = self.transforms[idx].reshape(4, 4)     # Ground Truth RT Matrix
         K_inverse = np.linalg.inv(K)
@@ -96,7 +98,7 @@ class CalibDNNDataset_Changwon(Dataset):
         data = {'source_depth_map': self.transform(source_map), 'target_depth_map': self.transform(target_map),
                 'source_image': self.transform(source_img), 'target_image': self.transform(target_img),
                 'point_cloud': self.transform(points), 'rotation_vector': rotation, 'translation_vector': translation,
-                'transform_matrix': ground_truth_matrix}
+                'transform_matrix': transformed_matrix}
 
         return data
 

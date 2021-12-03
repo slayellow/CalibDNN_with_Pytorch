@@ -97,9 +97,6 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
 
         optimizer.zero_grad()
 
-        print("LIDAR : ", torch.max(source_depth_map))
-        print("IMAGE : ", torch.max(source_image))
-
         rotation, translation = model(source_image, source_depth_map)
 
         loss = loss_function(point_cloud, translation_vector, rotation_vector,
