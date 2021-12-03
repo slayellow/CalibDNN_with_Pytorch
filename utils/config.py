@@ -3,24 +3,18 @@ import numpy as np
 
 dataprocessing = dict(
     dataset_path = "/data/2011_09_26/",
+    dataset_changwon_path = "/data/2021_12_02/train/"
 )
 
 
 paths = dict(
+    dataset_changwon_path = "/home/HONG/CalibDNN_with_Pytorch/dataset/Changwon/parsed_set_changwon.txt",
     dataset_path = "/home/HONG/CalibDNN_with_Pytorch/dataset/parsed_set.txt",
     pretrained_path = "/home/HONG/PretrainedParameter/CalibDNN/",
     training_img_result_path = "/home/HONG/CalibDNN_Result/training",
     validation_img_result_path = "/home/HONG/CalibDNN_Result/valid",
     inference_img_result_path = "/home/HONG/CalibDNN_Result/inference"
 )
-
-# paths = dict(
-#     dataset_path = "/Users/jinseokhong/PythonProject/CalibDNN_with_Pytorch/dataset/parsed_set.txt",
-#     pretrained_path = "/Users/jinseokhong/data/Result",
-#     training_img_result_path = "/Users/jinseokhong/data/Result",
-#     validation_img_result_path = "/Users/jinseokhong/data/Result"
-# )
-
 
 # 카메라 관련 파라메타
 
@@ -64,7 +58,7 @@ network_info = dict(
     depth_map_loss_weight=1.0,
     point_cloud_loss_weight=0.5,
     batch_size = 24,                        # batch_size take during training
-    epochs = 100,                            # total number of epoch
+    epochs = 30,                            # total number of epoch
     learning_rate = 3e-4,                   # learining rate
     beta1 = 0.9,                            # momentum term for Adam Optimizer
     freq_print = 10,

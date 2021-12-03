@@ -97,6 +97,9 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
 
         optimizer.zero_grad()
 
+        print("LIDAR : ", torch.max(source_depth_map))
+        print("IMAGE : ", torch.max(source_image))
+
         rotation, translation = model(source_image, source_depth_map)
 
         loss = loss_function(point_cloud, translation_vector, rotation_vector,
@@ -244,6 +247,6 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         'epoch': epoch + 1,
         'arch': model.get_name(),
         'state_dict': model.state_dict(),
-        'optimizer': optimizer.state_dict()}, False, os.path.join(pretrained_path, model.get_name()), 'pth')
+        'optimizer': optimizer.state_dict()}, True, os.path.join(pretrained_path, model.get_name()), 'pth')
 
 print("Train Finished!!")

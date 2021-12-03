@@ -59,7 +59,7 @@ class TotalLoss(nn.Module):
             predicted_depth_map[0:5, :] = 0.0
             predicted_depth_map[:, 0:5] = 0.0
             predicted_depth_map[predicted_depth_map.shape[0] - 5:, :] = 0.0
-            predicted_depth_map[:, predicted_depth_map.shape[0] - 5:] = 0.0
+            predicted_depth_map[:, predicted_depth_map.shape[1] - 5:] = 0.0
             predicted_depth_map = (predicted_depth_map - 40.0) / 40.0
 
             depth_error = self.depth_map_loss(predicted_depth_map, gt_depth_map[i][0])

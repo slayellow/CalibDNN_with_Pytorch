@@ -16,6 +16,17 @@ def convert_6DoF_to_RTMatrix(rotation, translation):
     RT = T @ R
     return np.array(RT)
 
+def convert_6DoF_to_RTMatrix_Inferencet_Matlab(rotation, translation):
+    R = mathutils.Quaternion((math.radians(rotation[0]), math.radians(rotation[1]), math.radians(rotation[2]), math.radians(rotation[3])))
+    T = mathutils.Vector((translation[0], translation[1], translation[2]))
+
+    R = R.to_matrix()
+    R.resize_4x4()
+    T = mathutils.Matrix.Translation(T)
+
+    RT = T @ R
+    return np.array(RT)
+
 
 def convert_RTMatrix_to_6DoF(matrix):
     RT = mathutils.Matrix(matrix)
