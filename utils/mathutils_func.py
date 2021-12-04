@@ -5,6 +5,27 @@ import torch
 import torch.nn.functional as F
 
 
+def yaw_pitch_roll(q):
+    qw = q[0]
+    qx = q[1]
+    qy = q[2]
+    qz = q[3]
+
+    if 2 * (qx * qz - qw * qy) >= 0.94:  # Preventing gimbal lock for north pole
+        yaw = np.arctan2(qx * qy - qw * qz, qx * qz + qw * qy)
+        roll = 0
+    elif 2 * (qx * qz - qw * qy) <= -0.94:  # Preventing gimbal lock for south pole
+        yaw = -np.arctan2(qx * qy - qw * qz, qx * qz + qw * qy)
+        roll = 0
+    else:
+        yaw = np.arctan2(qy * qz + qw * qx,
+                         1 / 2 - (qx ** 2 + qy ** 2))
+        roll = np.arctan2(qx * qy - qw * qz,
+                          1 / 2 - (qy ** 2 + qz ** 2))
+    pitch = np.arcsin(-2 * (qx * qz - qw * qy))
+
+    return np.array([roll, pitch, yaw])
+
 def convert_6DoF_to_RTMatrix(rotation, translation):
     R = mathutils.Quaternion((rotation[0], rotation[1], rotation[2], rotation[3]))
     T = mathutils.Vector((translation[0], translation[1], translation[2]))
@@ -30,7 +51,6 @@ def convert_6DoF_to_RTMatrix_Inferencet_Matlab(rotation, translation):
 
 def convert_RTMatrix_to_6DoF(matrix):
     RT = mathutils.Matrix(matrix)
-    # RT.invert_safe()
     T_GT, R_GT, _ = RT.decompose()
     return np.array(R_GT), np.array(T_GT)
 

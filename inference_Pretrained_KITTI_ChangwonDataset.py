@@ -23,7 +23,7 @@ print("------------ GPU Setting Finish ----------------")
 print("")
 print("------------ Dataset Setting Start ----------------")
 validationset = CalibDNNDataset_Changwon(cf.paths['dataset_changwon_path'], training=False)
-valid_loader = get_loader(validationset, batch_size=cf.network_info['batch_size'], shuffle=False,
+valid_loader = get_loader(validationset, batch_size=2, shuffle=False,
                           num_worker=cf.network_info['num_worker'])
 print("------------ Validation Dataset Setting Finish ----------------")
 print("")
@@ -48,7 +48,14 @@ print("")
 print("------------ Inference Start ----------------")
 
 model.eval()
+rotation_X = np.array([0.0], dtype=np.float32)
+rotation_Y = np.array([0.0], dtype=np.float32)
+rotation_Z = np.array([0.0], dtype=np.float32)
+translation_X = np.array([0.0], dtype=np.float32)
+translation_Y = np.array([0.0], dtype=np.float32)
+translation_Z = np.array([0.0], dtype=np.float32)
 
+count = 0
 for i_batch, sample_bathced in enumerate(valid_loader):
 
     source_depth_map = sample_bathced['source_depth_map']
@@ -71,6 +78,30 @@ for i_batch, sample_bathced in enumerate(valid_loader):
         transform_matrix = transform_matrix.to(devices)
 
     rotation, translation = model(source_image, source_depth_map)
+
+    rotation_predicted = rotation
+    translation_predicted = translation
+    rotation_gt = rotation_vector.detach().cpu().numpy()
+    translation_gt = translation_vector.detach().cpu().numpy()
+
+    count += translation_gt.shape[0]
+
+    for rot_pre, rot_gt, tra_pre, tra_gt in zip(rotation_predicted, rotation_gt, translation_predicted, translation_gt):
+        R_predicted = quat2mat(rot_pre)
+        T_predicted = tvector2mat(tra_pre)
+        RT_predicted = torch.mm(T_predicted, R_predicted)
+        rot_pre_norm = quaternion_from_matrix(RT_predicted)
+        rot_pre_euler = yaw_pitch_roll(rot_pre_norm.detach().cpu().numpy())
+        rot_gt_euler = yaw_pitch_roll(rot_gt)
+        rot_pre_degree = np.rad2deg(rot_pre_euler)
+        rot_gt_degree = np.rad2deg(rot_gt_euler)
+        tra_pre = tra_pre.detach().cpu().numpy()
+        rotation_X += np.abs(rot_gt_degree[0] - rot_pre_degree[0])
+        rotation_Y += np.abs(rot_gt_degree[1] - rot_pre_degree[1])
+        rotation_Z += np.abs(rot_gt_degree[2] - rot_pre_degree[2])
+        translation_X += np.abs(tra_gt[0] - tra_pre[0])
+        translation_Y += np.abs(tra_gt[1] - tra_pre[1])
+        translation_Z += np.abs(tra_gt[2] - tra_pre[2])
 
     R_predicted = quat2mat(rotation[0])
     T_predicted = tvector2mat(translation[0])
@@ -119,7 +150,12 @@ for i_batch, sample_bathced in enumerate(valid_loader):
                projected_img)
 
     if i_batch % cf.network_info['freq_print'] == 0:
-        print('Test: [{0}/{1}] Image Save Success'.format(i_batch, len(valid_loader)))
-        break
+        print('Test: [{0}/{1}] Evaluation Metrics Success'.format(i_batch, len(valid_loader)))
+        print("[ROT X] : ", rotation_X / count, " [ROT Y] : ", rotation_Y / count, " [ROT Z] : ", rotation_Z / count,
+              " [TRANSLATION X] : ", translation_X / count, " [TRANSLATION Y] : ", translation_Y / count,
+              "[TRANSLATION Z] :",
+              translation_Z / count)
 
-print("Inference Finished!!")
+print("[ROT X] : ", rotation_X / count, " [ROT Y] : ", rotation_Y / count, " [ROT Z] : ", rotation_Z / count,
+      " [TRANSLATION X] : ", translation_X / count, " [TRANSLATION Y] : ", translation_Y / count, "[TRANSLATION Z] :",
+      translation_Z / count)
