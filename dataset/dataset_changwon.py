@@ -77,8 +77,6 @@ class CalibDNNDataset_Changwon(Dataset):
         target_img[:, target_img.shape[1] - 5:] = 0.0
         target_img = (target_img - 127.5) / 127.5
 
-        points = self.point_cloud[idx]
-
         points = np.fromfile(self.point_cloud[idx], sep=' ')
         points = points.reshape((-1, 4))
         points = points[:230400, :3]

@@ -21,6 +21,8 @@ paths = dict(
 camera_info = dict(
     WIDTH = 1242,
     HEIGHT = 375,
+    WIDTH_CHANGWON = 640,
+    HEIGHT_CHANGWON = 480,
 
     fx = 7.215377e+02,
     fy = 7.215377e+02,
@@ -48,7 +50,9 @@ camera_intrinsic_parameter = np.array([[fx_scaled, 0.0, cx_scaled],
                                        [0.0, 0.0, 1.0]], dtype= np.float32)
 
 K = np.array([7.215377e+02, 0.000000e+00, 6.095593e+02, 0.000000e+00, 7.215377e+02, 1.728540e+02, 0.000000e+00, 0.000000e+00, 1.000000e+00]).reshape(3,3)
-
+K_changwon = np.array([384.8557, 0, 328.4401,
+              0, 345.4014, 245.6107,
+              0, 0, 1]).reshape(3, 3)
 
 # 네트워크 구성 관련 파라메타
 
@@ -57,8 +61,8 @@ network_info = dict(
     translation_weight=2.0,
     depth_map_loss_weight=1.0,
     point_cloud_loss_weight=0.5,
-    batch_size = 8,                        # batch_size take during training
-    epochs = 30,                            # total number of epoch
+    batch_size = 24,                        # batch_size take during training
+    epochs = 60,                            # total number of epoch
     learning_rate = 3e-4,                   # learining rate
     beta1 = 0.9,                            # momentum term for Adam Optimizer
     freq_print = 10,

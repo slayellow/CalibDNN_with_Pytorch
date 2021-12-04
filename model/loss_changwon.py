@@ -33,18 +33,15 @@ class TotalLoss(nn.Module):
         # PointCloud Loss
         point_clouds_loss = torch.tensor([0.0], dtype=torch.float32).to(predicted_rotation_vector.device)
         for i in range(len(point_clouds)):
-            R_GT = quat2mat(gt_rotation_vector[i])
-            T_GT = tvector2mat(gt_translation_vector[i])
-            RT_GT = torch.mm(T_GT, R_GT)
-            point_cloud_gt = torch.mm(RT_GT, point_clouds[i][0].t())
+            point_cloud = point_clouds[i][0] * 0.01
 
-            # point_cloud_gt = torch.mm(gt_rt_matrix[i], point_clouds[i][0].t()).to(predicted_rotation_vector.device)
+            point_cloud_gt = torch.mm(gt_rt_matrix[i], point_cloud.t()).to(predicted_rotation_vector.device)
 
             R_predicted = quat2mat(predicted_rotation_vector[i])
             T_predicted = tvector2mat(predicted_translation_vector[i])
             RT_predicted = torch.mm(T_predicted, R_predicted)
 
-            point_cloud_out = torch.mm(RT_predicted, point_clouds[i][0].t())
+            point_cloud_out = torch.mm(RT_predicted, point_cloud.t())
             error = (point_cloud_out - point_cloud_gt).norm(dim=0)
             error.clamp(100.)
             point_clouds_loss += error.mean()
@@ -54,8 +51,8 @@ class TotalLoss(nn.Module):
             x = (points_2d_predicted[0, :] / Z).t()
             y = (points_2d_predicted[1, :] / Z).t()
 
-            x = torch.clamp(x, 0.0, 640 - 1).to(torch.long)
-            y = torch.clamp(y, 0.0, 480 - 1).to(torch.long)
+            x = torch.clamp(x, 0.0, 639.0).to(torch.long)
+            y = torch.clamp(y, 0.0, 479.0).to(torch.long)
 
             # High Speed ( 2021. 11. 25. )
             Z_Index = torch.where(Z > 0)
