@@ -11,18 +11,21 @@ from scipy import io
 import torchvision.transforms as transforms
 
 
-dataset_path = '/data/AICamera/'
+dataset_path = '/data/LegacyCamera/'
 
-K = np.array([734.9760, 0.0, 625.2400, 0.0, 736.0504, 523.6243, 0.0, 0.0, 1.0]).reshape(3, 3)
-GT_RTMatrix = np.array([710.628311, 648.392377, -75.561497, -167956.992177,
-                        -26.577065, 442.323933, -787.144066, -372986.043192,
-                        -0.038042, 0.993686, -0.105549, -191.677303]).reshape((3, 4))
+K = np.array([384.8557, 0, 328.4401,
+              0, 345.4014, 245.6107,
+              0, 0, 1]).reshape(3, 3)
+ExtrinsicParameter_meter = np.array([372.987160, 339.659994, -38.710366, -82.675118467,
+                               -11.669059, 208.264253, -368.939818, -171.438409027,
+                               -0.035360, 0.994001, -0.103494, -0.179826270,
+                                     0.0, 0.0, 0.0, 1.0]).reshape(4, 4)
 
 
 print("------------ GPU Setting Start ----------------")
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = False
-
+pretrained_path = cf.paths['pretrained_path']
 gpu_check = is_gpu_avaliable()
 devices = torch.device("cuda") if gpu_check else torch.device("cpu")
 if gpu_check:
@@ -33,17 +36,17 @@ print("------------ GPU Setting Finish ----------------")
 print("")
 print("")
 print("------------ Model Setting Start ----------------")
-model = CalibDNN18(18).to(devices)
+model = CalibDNN18(18, pretrained=os.path.join(pretrained_path, "CalibDNN_18_ALL" + '.pth')).to(devices)
 print("------------ Model Summary ----------------")
 summary(model, [(1, 3, 375, 1242), (1, 3, 375, 1242)], devices)
 print("------------ Model Setting Finish ----------------")
 print("")
 K_final = torch.tensor(K, dtype=torch.float32).to(devices)
 
-pretrained_path = cf.paths['pretrained_path']
-if os.path.isfile(os.path.join(pretrained_path, model.get_name() + '.pth')):
+
+if os.path.isfile(os.path.join(pretrained_path, "CalibDNN_18_ALL" + '.pth')):
     print("Pretrained Model Open : ", model.get_name() + ".pth")
-    checkpoint = load_weight_file(os.path.join(pretrained_path, model.get_name() + '.pth'))
+    checkpoint = load_weight_file(os.path.join(pretrained_path, "CalibDNN_18_ALL" + '.pth'))
     start_epoch = checkpoint['epoch']
     load_weight_parameter(model, checkpoint['state_dict'])
 else:
@@ -64,16 +67,16 @@ for image_file, lidar_file in zip(AICamera_image, AICamera_lidar):
     input_image = smc.imread(image_file)
     points = np.loadtxt(lidar_file, delimiter=',')
     points = points.reshape((-1, 5))
-    points = points[:, 1:4] * 10.0
-    # useless_idx = np.where(points[:, 0] != 0)
-    # points = points[useless_idx, :]
-    # useless_idx = np.where(points[0] != -8018.9)
-    # points = points[useless_idx]
+    points = points[:, 1:4]
+    useless_idx = np.where(points[:, 0] != 0)
+    points = points[useless_idx]
+    useless_idx = np.where(points[:, 0] != -801.89)
+    points = points[useless_idx] * 0.01
     ones_col = np.ones(shape=(points.shape[0],1))
     points = np.hstack((points,ones_col))
 
     # Ground Truth Projection Image Get
-    points_2d_Gt = np.matmul(GT_RTMatrix, points.T)
+    points_2d_Gt = np.matmul(ExtrinsicParameter_meter, points.T)
     Z = points_2d_Gt[2,:]
     x = (points_2d_Gt[0,:]/Z).T
     y = (points_2d_Gt[1,:]/Z).T
@@ -82,7 +85,7 @@ for image_file, lidar_file in zip(AICamera_image, AICamera_lidar):
     reprojected_img = input_image.copy()
     for x_idx, y_idx,z_idx in zip(x, y, Z):
         if(z_idx>0):
-            cv2.circle(reprojected_img, (int(x_idx), int(y_idx)), 2, (0, 0, 255), -1)
+            cv2.circle(reprojected_img, (int(x_idx), int(y_idx)), 1, (0, 0, 255), -1)
     smc.imsave(dataset_path + "MatlabResult/" + file[-1] + ".png", reprojected_img)
 
     # Init Depth Map
@@ -95,7 +98,11 @@ for image_file, lidar_file in zip(AICamera_image, AICamera_lidar):
 
     points = np.loadtxt(lidar_file, delimiter=',')
     points = points.reshape((-1, 5))
-    points = points[:, 1:4] * 0.01
+    points = points[:, 1:4]
+    useless_idx = np.where(points[:, 0] != 0)
+    points = points[useless_idx]
+    useless_idx = np.where(points[:, 0] != -801.89)
+    points = points[useless_idx] * 0.01
     ones_col = np.ones(shape=(points.shape[0], 1))
     points = np.hstack((points, ones_col))
 
@@ -115,7 +122,7 @@ for image_file, lidar_file in zip(AICamera_image, AICamera_lidar):
     for x_idx, y_idx, z_idx in zip(x, y, Z):
         if (z_idx > 0):
             init_depthmap[int(y_idx), int(x_idx)] = z_idx
-            cv2.circle(projected_img, (int(x_idx), int(y_idx)), 2, (255, 0, 0), -1)
+            cv2.circle(projected_img, (int(x_idx), int(y_idx)), 1, (255, 0, 0), -1)
     smc.imsave(dataset_path + "InitDepthMap/" + file[-1] + ".png", init_depthmap)
     smc.imsave(dataset_path + "InitProjectionResult/" + file[-1] + ".png", projected_img)
 
@@ -135,7 +142,7 @@ for image_file, lidar_file in zip(AICamera_image, AICamera_lidar):
     source_map[:, 0:5] = 0.0
     source_map[source_map.shape[0] - 5:, :] = 0.0
     source_map[:, source_map.shape[1] - 5:] = 0.0
-    source_map = (source_map - 40.0) / 40.0
+    source_map = (source_map - 127.5) / 127.5
     source_map = transform(source_map).to(devices)
     source_map = torch.unsqueeze(source_map, 0)
 
@@ -144,16 +151,12 @@ for image_file, lidar_file in zip(AICamera_image, AICamera_lidar):
         source_image = source_image.to(torch.float32)
 
     # Problem
-    print("LIDAR : ", torch.max(source_map))
-    print("IMAGE : ", torch.max(source_image))
+
     rotation, translation = model(source_image, source_map)
 
-    # Save Predicted Depth Map
-    rotation = rotation.detach().cpu().numpy()
-    translation = translation.detach().cpu().numpy()
-    print("Rotation ", rotation[0])
-    print("Translation ", translation[0])
-    predicted_RTMatrix = convert_6DoF_to_RTMatrix(rotation[0], translation[0])
+    R_predicted = quat2mat(rotation[0])
+    T_predicted = tvector2mat(translation[0])
+    predicted_RTMatrix = torch.mm(T_predicted, R_predicted).detach().cpu().numpy()
 
     transformed_points = np.matmul(predicted_RTMatrix, points.T)
     points_2d_Init = np.matmul(K, transformed_points[:-1, :])
@@ -167,7 +170,7 @@ for image_file, lidar_file in zip(AICamera_image, AICamera_lidar):
     for x_idx, y_idx, z_idx in zip(x, y, Z):
         if (z_idx > 0):
             init_depthmap[int(y_idx), int(x_idx)] = z_idx
-            cv2.circle(projected_img, (int(x_idx), int(y_idx)), 2, (255, 0, 0), -1)
+            cv2.circle(projected_img, (int(x_idx), int(y_idx)), 1, (255, 0, 0), -1)
     smc.imsave(dataset_path + "PredictedDepthMap/" + file[-1] + ".png", init_depthmap)
     smc.imsave(dataset_path + "PredictedProjectionResult/" + file[-1] + ".png", projected_img)
 
