@@ -80,13 +80,13 @@ class CalibDNNDataset(Dataset):
         ones_col = np.ones(shape=(points.shape[0], 1))
         points = np.hstack((points, ones_col)).astype(np.float32)
 
-        ground_truth_matrix = self.transforms[idx].reshape(4, 4)     # Ground Truth RT Matrix
-        rotation, translation = convert_RTMatrix_to_6DoF(ground_truth_matrix)
+        transformed = np.linalg.inv(self.transforms[idx].reshape(4, 4))    # Ground Truth RT Matrix
+        rotation, translation = convert_RTMatrix_to_6DoF(transformed)
 
         data = {'source_depth_map': self.transform(source_map), 'target_depth_map': self.transform(target_map),
                 'source_image': self.transform(source_img), 'target_image': self.transform(target_img),
                 'point_cloud': self.transform(points), 'rotation_vector': rotation, 'translation_vector': translation,
-                'transform_matrix': ground_truth_matrix}
+                'transform_matrix': transformed}
 
         return data
 

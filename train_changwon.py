@@ -45,13 +45,12 @@ K_final = torch.tensor(K, dtype=torch.float32).to(devices)
 print("------------ Loss Function Setting Start ----------------")
 loss_function = TotalLoss(rotation_weight=cf.network_info['rotation_weight'],
                           translation_weight=cf.network_info['translation_weight'],
-                          depth_map_loss_weight=cf.network_info['depth_map_loss_weight'],
                           point_cloud_loss_weight=cf.network_info['point_cloud_loss_weight']).to(devices)
 print("------------ Loss Function Setting Finish ----------------")
 learning_rate = cf.network_info['learning_rate']
 
 optimizer = set_Adam(model, learning_rate=learning_rate)
-scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[5, 10, 15], gamma=0.5)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[5, 10, 20], gamma=0.5)
 
 
 if os.path.isfile(os.path.join(pretrained_path, "CalibDNN_18_Changwon" + '.pth')):
@@ -70,7 +69,6 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
     data_time = AverageMeter()
     losses = AverageMeter()
     trans_loss = AverageMeter()
-    depth_loss = AverageMeter()
     point_loss = AverageMeter()
 
     model.train()
@@ -83,7 +81,6 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         source_depth_map = sample_bathced['source_depth_map']
         source_image = sample_bathced['source_image']
         target_depth_map = sample_bathced['target_depth_map']
-        expected_transform = sample_bathced['transform_matrix']
         point_cloud = sample_bathced['point_cloud']
         rotation_vector = sample_bathced['rotation_vector'].to(torch.float32)
         translation_vector = sample_bathced['translation_vector'].to(torch.float32)
@@ -94,7 +91,6 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
             source_image = source_image.to(devices)
             target_depth_map = target_depth_map.to(devices)
             point_cloud = point_cloud.to(devices)
-            expected_transform = expected_transform.to(devices)
             rotation_vector = rotation_vector.to(devices)
             translation_vector = translation_vector.to(devices)
             transform_matrix = transform_matrix.to(devices)
@@ -104,37 +100,29 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         rotation, translation = model(source_image, source_depth_map)
 
         loss = loss_function(point_cloud, translation_vector, rotation_vector,
-                             translation, rotation, transform_matrix, K_final, target_depth_map)
+                             translation, rotation, transform_matrix)
 
         loss['total_loss'].backward()
         optimizer.step()
 
         losses.update(loss['total_loss'].item(), source_depth_map.size(0))
         trans_loss.update(loss['transformation_loss'].item(), source_depth_map.size(0))
-        depth_loss.update(loss['depth_map_loss'].item(), source_depth_map.size(0))
         point_loss.update(loss['point_clouds_loss'].item(), source_depth_map.size(0))
         batch_time.update(time.time() - end)
         end = time.time()
 
         if i_batch % cf.network_info['freq_print'] == 0:
-            print("Rotation Quaternion[w, x, y, z] : ", rotation[0])
-            if rotation[0].norm() != 1.:
-                rotation[0] = rotation[0] / rotation[0].norm()
-            print("Rotation Norm Quaternion[w, x, y, z] : ", rotation[0])
-            print("Translation Vector : ", translation[0])
             print('Epoch: [{0}][{1}/{2}] \t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f}) \t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f}) \t'
                   'Total Loss {loss.val:.4f} ({loss.avg:.4f}) \t'
                   'Transformation Loss {trans_loss.val:.4f} ({trans_loss.avg:.4f}) \t'
-                  'Depth Map Loss {depth_loss.val:.4f} ({depth_loss.avg:.4f}) \t'
                   'Point Cloud Loss {point_loss.val:.4f} ({point_loss.avg:.4f}) \t'.format(epoch + 1, i_batch,
                                                                                            len(data_loader),
                                                                                            batch_time=batch_time,
                                                                                            data_time=data_time,
                                                                                            loss=losses,
                                                                                            trans_loss=trans_loss,
-                                                                                           depth_loss=depth_loss,
                                                                                            point_loss=point_loss))
 
     scheduler.step()
@@ -151,7 +139,6 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         source_depth_map = sample_bathced['source_depth_map']
         source_image = sample_bathced['source_image']
         target_depth_map = sample_bathced['target_depth_map']
-        expected_transform = sample_bathced['transform_matrix']
         point_cloud = sample_bathced['point_cloud']
         rotation_vector = sample_bathced['rotation_vector'].to(torch.float32)
         translation_vector = sample_bathced['translation_vector'].to(torch.float32)
@@ -161,7 +148,6 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
             source_depth_map = source_depth_map.to(devices)
             source_image = source_image.to(devices)
             target_depth_map = target_depth_map.to(devices)
-            expected_transform = expected_transform.to(devices)
             point_cloud = point_cloud.to(devices)
             rotation_vector = rotation_vector.to(devices)
             translation_vector = translation_vector.to(devices)
@@ -172,7 +158,7 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         rotation, translation = model(source_image, source_depth_map)
 
         loss = loss_function(point_cloud, translation_vector, rotation_vector,
-                             translation, rotation, transform_matrix, K_final, target_depth_map)
+                             translation, rotation, transform_matrix)
 
         valid_losses.update(loss['total_loss'].item(), source_depth_map.size(0))
 

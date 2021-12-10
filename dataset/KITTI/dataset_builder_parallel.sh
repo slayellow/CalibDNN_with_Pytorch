@@ -16,9 +16,9 @@ task_unzip()
 }
 task_preprocessing()
 {
-    python -B $SCRIPTPATH/dataset_build_color.py $PWD/2011_09_26/2011_09_26_drive_$1
-    python -B $SCRIPTPATH/dataset_build_color_2.py $PWD/2011_09_26/2011_09_26_drive_$1
-    python -B $SCRIPTPATH/dataset_build_color_3.py $PWD/2011_09_26/2011_09_26_drive_$1
+    python -B $SCRIPTPATH/dataset_build_color.py $PWD/2011_09_26_drive_$1
+    python -B $SCRIPTPATH/dataset_build_color_2.py $PWD/2011_09_26_drive_$1
+    python -B $SCRIPTPATH/dataset_build_color_3.py $PWD/2011_09_26_drive_$1
     echo "Perturbing Depth Maps for ${array[$id]}"
 }
 

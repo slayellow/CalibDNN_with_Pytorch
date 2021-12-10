@@ -115,6 +115,9 @@ for img_name, cloud_name in zip(imgs_files, point_files):
     RT = T @ R
 
     random_transform = np.array(RT)
+    to_write_tr = np.expand_dims(np.ndarray.flatten(random_transform), 0)
+    angle_list = np.vstack((angle_list, to_write_tr))
+
     print("data_set_build_color.py : \n", random_transform)
     pointcloud_file.write(cloud_name + "\n")
 
@@ -149,8 +152,6 @@ for img_name, cloud_name in zip(imgs_files, point_files):
     smc.imsave(depth_maps_transformed_folder + "/" + img_name[-14:], reprojected_img)
 
     GT_RTMatrix = np.matmul(cam_02_transform, np.matmul(R_rect_00, velo_to_cam))
-    to_write_tr = np.expand_dims(np.ndarray.flatten(GT_RTMatrix), 0)
-    angle_list = np.vstack((angle_list, to_write_tr))
 
     points_2d = np.matmul(K, np.matmul(GT_RTMatrix, points.T)[:-1, :])
 
