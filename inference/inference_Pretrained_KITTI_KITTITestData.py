@@ -140,6 +140,12 @@ for image_file, depth_map, pointfile in zip(AICamera_image, AICamera_Point, tran
         source_image = source_image.to(torch.float32)
 
     rotation, translation = model(source_image, source_map)
+    print(rotation[0])
+    if rotation[0].norm() != 1.:
+        rotation[0] = rotation[0] / rotation[0].norm()
+    print(rotation[0])
+    print(translation[0])
+
     GT_RTMatrix = np.matmul(cam_02_transform, np.matmul(R_rect_00, velo_to_cam))
     tra_gt = np.array(GT_RTMatrix[:-1, 3]).T
     rot_gt = quaternion_from_matrix(torch.Tensor(GT_RTMatrix)).detach().cpu().numpy()

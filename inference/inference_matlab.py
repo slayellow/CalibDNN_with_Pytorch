@@ -154,6 +154,12 @@ for image_file, lidar_file in zip(AICamera_image, AICamera_lidar):
 
     rotation, translation = model(source_image, source_map)
 
+    print(rotation[0])
+    if rotation[0].norm() != 1.:
+        rotation[0] = rotation[0] / rotation[0].norm()
+    print(rotation[0])
+    print(translation[0])
+
     R_predicted = quat2mat(rotation[0])
     T_predicted = tvector2mat(translation[0])
     predicted_RTMatrix = torch.mm(T_predicted, R_predicted).detach().cpu().numpy()

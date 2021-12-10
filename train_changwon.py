@@ -38,7 +38,7 @@ print("")
 print("------------ Model Setting Start ----------------")
 model = CalibDNN18(18, pretrained = os.path.join(pretrained_path, "CalibDNN_18_Changwon" + '.pth')).to(devices)
 print("------------ Model Summary ----------------")
-summary(model, [(1, 3, 375, 1242), (1, 3, 375, 1242)], devices)
+summary(model, [(1, 3, 480, 640), (1, 3, 480, 640)], devices)
 print("------------ Model Setting Finish ----------------")
 print("")
 K_final = torch.tensor(K, dtype=torch.float32).to(devices)
@@ -51,7 +51,7 @@ print("------------ Loss Function Setting Finish ----------------")
 learning_rate = cf.network_info['learning_rate']
 
 optimizer = set_Adam(model, learning_rate=learning_rate)
-scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[5, 10, 20], gamma=0.5)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[5, 10, 15], gamma=0.5)
 
 
 if os.path.isfile(os.path.join(pretrained_path, "CalibDNN_18_Changwon" + '.pth')):
@@ -117,6 +117,11 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         end = time.time()
 
         if i_batch % cf.network_info['freq_print'] == 0:
+            print("Rotation Quaternion[w, x, y, z] : ", rotation[0])
+            if rotation[0].norm() != 1.:
+                rotation[0] = rotation[0] / rotation[0].norm()
+            print("Rotation Norm Quaternion[w, x, y, z] : ", rotation[0])
+            print("Translation Vector : ", translation[0])
             print('Epoch: [{0}][{1}/{2}] \t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f}) \t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f}) \t'

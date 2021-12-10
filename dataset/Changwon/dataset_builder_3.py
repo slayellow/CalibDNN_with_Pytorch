@@ -25,7 +25,7 @@ ExtrinsicParameter_meter = np.array([372.987160, 339.659994, -38.710366, -82.675
 IMG_HT = 480
 IMG_WDT = 640
 
-dataset_path = '/data/2021_12_02/'
+dataset_path = '/data/2021_12_02/train/'
 
 for path, dirs, files in os.walk(dataset_path):
     for foldername in dirs:
@@ -47,7 +47,7 @@ for path, dirs, files in os.walk(dataset_path):
         for img_name, cloud_name in zip(imgs_files, point_files):
 
             print(img_name, cloud_name)
-            imagefile = img_name.split('/')[5]
+            imagefile = img_name.split('/')[6]
 
             omega_x = angle_limit*np.random.random_sample() - (angle_limit/2.0)
             omega_y = angle_limit*np.random.random_sample() - (angle_limit/2.0)
@@ -64,6 +64,9 @@ for path, dirs, files in os.walk(dataset_path):
             T = mathutils.Matrix.Translation(t_org)
             RT = T @ R
             random_transform = np.array(RT)
+
+            to_write_tr = np.expand_dims(np.ndarray.flatten(random_transform), 0)
+            angle_list = np.vstack((angle_list, to_write_tr))
 
             points = np.loadtxt(cloud_name)
             points = points[:, :3] * 0.01
@@ -91,9 +94,6 @@ for path, dirs, files in os.walk(dataset_path):
                     reprojected_img[int(y_idx), int(x_idx)] = z_idx
 
             smc.imsave(dataset_path + foldername + "/depth_maps_transformed_3" + "/" + imagefile, reprojected_img)
-
-            to_write_tr = np.expand_dims(np.ndarray.flatten(ExtrinsicParameter_meter), 0)
-            angle_list = np.vstack((angle_list, to_write_tr))
 
             points_2d = np.matmul(ExtrinsicParameter_meter, points.T)
 

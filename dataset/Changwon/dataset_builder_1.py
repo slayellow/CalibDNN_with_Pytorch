@@ -12,12 +12,6 @@ K = np.array([384.8557, 0, 328.4401,
               0, 345.4014, 245.6107,
               0, 0, 1]).reshape(3, 3)
 
-# GT Matrix ( unit : mm ) -> convert meter [* 1000]
-# ExtrinsicParameter = np.array([372.987160, 339.659994, -38.710366, -82675.118467,
-#                                -11.669059, 208.264253, -368.939818, -171438.409027,
-#                                -0.035360, 0.994001, -0.103494, -179.826270,
-#                                0.0, 0.0, 0.0, 1.0]).reshape(4, 4)
-
 ExtrinsicParameter_meter = np.array([372.987160, 339.659994, -38.710366, -82.675118467,
                                -11.669059, 208.264253, -368.939818, -171.438409027,
                                -0.035360, 0.994001, -0.103494, -0.179826270,
@@ -47,7 +41,7 @@ for path, dirs, files in os.walk(dataset_path):
         for img_name, cloud_name in zip(imgs_files, point_files):
 
             print(img_name, cloud_name)
-            imagefile = img_name.split('/')[5]
+            imagefile = img_name.split('/')[6]
 
             omega_x = angle_limit*np.random.random_sample() - (angle_limit/2.0)
             omega_y = angle_limit*np.random.random_sample() - (angle_limit/2.0)
@@ -64,6 +58,9 @@ for path, dirs, files in os.walk(dataset_path):
             T = mathutils.Matrix.Translation(t_org)
             RT = T @ R
             random_transform = np.array(RT)
+
+            to_write_tr = np.expand_dims(np.ndarray.flatten(random_transform), 0)
+            angle_list = np.vstack((angle_list, to_write_tr))
 
             points = np.loadtxt(cloud_name)
             points = points[:, :3] * 0.01
@@ -91,9 +88,6 @@ for path, dirs, files in os.walk(dataset_path):
                     reprojected_img[int(y_idx), int(x_idx)] = z_idx
 
             smc.imsave(dataset_path + foldername + "/depth_maps_transformed" + "/" + imagefile, reprojected_img)
-
-            to_write_tr = np.expand_dims(np.ndarray.flatten(ExtrinsicParameter_meter), 0)
-            angle_list = np.vstack((angle_list, to_write_tr))
 
             points_2d = np.matmul(ExtrinsicParameter_meter, points.T)
 

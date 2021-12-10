@@ -9,21 +9,20 @@ import imageio as smc
 from natsort import natsorted as ns
 import glob, os
 import cv2
-import open3d as o3d
 import torchvision.transforms as transforms
 
 
 lidar_path = '/data/Unmanned/lidar/000000.txt'
 image_path = '/data/Unmanned/image/000000.png'
 
-K = np.array([354.029876, 0, 322.794459,
-              0, 353.267452, 225.132395,
+K = np.array([355.128821, 0, 315.192763,
+              0, 353.926131, 233.417237,
               0, 0, 1]).reshape(3, 3)
 
-Ground_Truth = np.array([354.3614, 322.4355, -26.8425, 88.1258368,
-                         9.7393, 182.0574, -377.6269, -45.5688552,
-                         -0.0020, 0.9934, -0.1143, 0.2775696,
-                         0.0, 0.0, 0.0, 1.0]).reshape(4, 4)
+Ground_Truth = np.array([350.8093, 319.9850, 2.3275, 4.0484051,
+                         -0.8352, 233.4116, -353.9289, 10.6080617,
+                         -0.0136, 0.9999, -0.0, -0.0001580,
+                         ]).reshape(3, 4)
 
 
 print("------------ GPU Setting Start ----------------")
@@ -65,8 +64,6 @@ if not os.path.exists("/data/Unmanned/init_depth_map"):
     os.makedirs("/data/Unmanned/init_depth_map")
 if not os.path.exists("/data/Unmanned/predicted_depth_map" ):
     os.makedirs("/data/Unmanned/predicted_depth_map" )
-if not os.path.exists("/data/Unmanned/ground_truth"):
-    os.makedirs("/data/Unmanned/ground_truth")
 
 # Image, LIDAR Data Read
 filename, _ = lidar_path.split('.')
@@ -76,15 +73,16 @@ points = np.loadtxt(lidar_path)
 ones_col = np.ones(shape=(points.shape[0], 1))
 points = np.hstack((points, ones_col))
 
-euler = mathutils.Euler(())
+euler = mathutils.Euler((math.radians(-90.0), 0.0, 0.0))
 R = euler.to_matrix()
 R.resize_4x4()
-T = mathutils.Matrix.Translation(mathutils.Vector((translation_vec[0], translation_vec[1], translation_vec[2])))
+T = mathutils.Matrix.Translation(mathutils.Vector((0.0, 0.0, 0.0)))
 RT = T @ R
 np_RT = np.array(RT)
 # Ground Truth Projection Image Get
 points_2d_Gt = np.matmul(np_RT, points.T)
 points_2d_Gt = np.matmul(K, points_2d_Gt[:-1, :])
+# points_2d_Gt = np.matmul(Ground_Truth, points.T)
 Z = points_2d_Gt[2,:]
 x = (points_2d_Gt[0,:]/Z).T
 y = (points_2d_Gt[1,:]/Z).T
@@ -96,7 +94,7 @@ for x_idx, y_idx,z_idx in zip(x, y, Z):
     if(z_idx>0):
         init_depthmap[int(y_idx), int(x_idx)] = z_idx
         cv2.circle(reprojected_img, (int(x_idx), int(y_idx)), 1, (0, 0, 255), -1)
-smc.imsave(dataset_path + "init_depth_map/" + file[-1] + ".png", reprojected_img)
+smc.imsave("/data/Unmanned/init_depth_map/" + file[-1] + ".png", reprojected_img)
 
 # Predict
 source_image = input_image.copy()
@@ -126,6 +124,12 @@ if gpu_check:
 
 rotation, translation = model(source_image, source_map)
 
+print(rotation[0])
+if rotation[0].norm() != 1.:
+    rotation[0] = rotation[0] / rotation[0].norm()
+print(rotation[0])
+print(translation[0])
+
 R_predicted = quat2mat(rotation[0])
 T_predicted = tvector2mat(translation[0])
 predicted_RTMatrix = torch.mm(T_predicted, R_predicted).detach().cpu().numpy()
@@ -143,7 +147,7 @@ for x_idx, y_idx, z_idx in zip(x, y, Z):
     if (z_idx > 0):
         init_depthmap[int(y_idx), int(x_idx)] = z_idx
         cv2.circle(projected_img, (int(x_idx), int(y_idx)), 1, (255, 0, 0), -1)
-smc.imsave(dataset_path + "predicted_depth_map/" + file[-1] + ".png", projected_img)
+smc.imsave("/data/Unmanned/predicted_depth_map/" + file[-1] + ".png", projected_img)
 
 print(file[-1] + "Predicted Success ! ")
 

@@ -79,6 +79,12 @@ for i_batch, sample_bathced in enumerate(valid_loader):
 
     rotation, translation = model(source_image, source_depth_map)
 
+    print(rotation[0])
+    if rotation[0].norm() != 1.:
+        rotation[0] = rotation[0] / rotation[0].norm()
+    print(rotation[0])
+    print(translation[0])
+
     rotation_predicted = rotation
     translation_predicted = translation
     rotation_gt = rotation_vector.detach().cpu().numpy()

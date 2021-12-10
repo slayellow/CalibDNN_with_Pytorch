@@ -86,17 +86,13 @@ class CalibDNNDataset_Changwon(Dataset):
             points = np.vstack((points, np.zeros((230400-points.shape[0], 4))))
         points = points.astype(np.float32)
 
-
-        ground_truth_matrix = self.transforms[idx].reshape(4, 4)     # Ground Truth RT Matrix
-        K_inverse = np.linalg.inv(K)
-        transformed_matrix = np.matmul(K_inverse, ground_truth_matrix[:-1])
-        transformed_matrix = np.vstack((transformed_matrix, [0.0, 0.0, 0.0, 1.0]))
-        rotation, translation = convert_RTMatrix_to_6DoF(transformed_matrix)
+        transformed = np.linalg.inv(self.transforms[idx].reshape(4, 4))    # Ground Truth RT Matrix
+        rotation, translation = convert_RTMatrix_to_6DoF(transformed)
 
         data = {'source_depth_map': self.transform(source_map), 'target_depth_map': self.transform(target_map),
                 'source_image': self.transform(source_img), 'target_image': self.transform(target_img),
                 'point_cloud': self.transform(points), 'rotation_vector': rotation, 'translation_vector': translation,
-                'transform_matrix': transformed_matrix}
+                'transform_matrix': transformed}
 
         return data
 
