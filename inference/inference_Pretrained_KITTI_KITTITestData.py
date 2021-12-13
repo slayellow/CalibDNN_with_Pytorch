@@ -79,6 +79,7 @@ transform = transforms.Compose([transforms.ToTensor()])
 AICamera_image = ns(glob.glob(dataset_path + "2011_09_29_drive_0026_sync/image_02/data/*.png"))
 AICamera_Point = ns(glob.glob(dataset_path + "2011_09_29_drive_0026_sync/depth_maps_transformed/*.png"))
 transforms_list = np.loadtxt(dataset_path + "2011_09_29_drive_0026_sync/pointcloud_list.txt", dtype=str)
+angle_list = np.loadtxt(dataset_path + "2011_09_29_drive_0026_sync/angle_list.txt", dtype=str)
 
 rotation_X = np.array([0.0], dtype=np.float32)
 rotation_Y = np.array([0.0], dtype=np.float32)
@@ -88,8 +89,8 @@ translation_Y = np.array([0.0], dtype=np.float32)
 translation_Z = np.array([0.0], dtype=np.float32)
 
 count = 0
-
-for image_file, depth_map, pointfile in zip(AICamera_image, AICamera_Point, transforms_list):
+image_count = 0
+for image_file, depth_map, pointfile, angle in zip(AICamera_image, AICamera_Point, transforms_list,angle_list):
     count += 1
     # Image, LIDAR Data Read
     filename, _ = image_file.split('.')
@@ -112,7 +113,7 @@ for image_file, depth_map, pointfile in zip(AICamera_image, AICamera_Point, tran
     for x_idx, y_idx,z_idx in zip(x, y, Z):
         if(z_idx>0):
             cv2.circle(reprojected_img, (int(x_idx), int(y_idx)), 1, (255, 0, 0), -1)
-    smc.imsave(cf.paths['inference_img_result_path'] + "/Pretrained_KITTI_KITTITestData_Target.png", reprojected_img)
+    smc.imsave(cf.paths['inference_img_result_path'] + "/Pretrained_KITTI_2011_09_29/KITTITestData_Target_" + str(image_count) + ".png", reprojected_img)
 
     # Predict
     source_image = input_image.copy()
@@ -135,44 +136,42 @@ for image_file, depth_map, pointfile in zip(AICamera_image, AICamera_Point, tran
     source_map = transform(source_map).to(devices)
     source_map = torch.unsqueeze(source_map, 0)
 
+    angle = np.float32(angle)
+    random_transform = angle.reshape(4, 4)
+
     if gpu_check:
         source_map = source_map.to(torch.float32)
         source_image = source_image.to(torch.float32)
 
     rotation, translation = model(source_image, source_map)
-    print(rotation[0])
-    if rotation[0].norm() != 1.:
-        rotation[0] = rotation[0] / rotation[0].norm()
-    print(rotation[0])
-    print(translation[0])
 
-    GT_RTMatrix = np.matmul(cam_02_transform, np.matmul(R_rect_00, velo_to_cam))
+    GT_RTMatrix = np.linalg.inv(random_transform)
     tra_gt = np.array(GT_RTMatrix[:-1, 3]).T
     rot_gt = quaternion_from_matrix(torch.Tensor(GT_RTMatrix)).detach().cpu().numpy()
-    for rot_pre, tra_pre in zip(rotation, translation):
-        R_predicted = quat2mat(rot_pre)
-        T_predicted = tvector2mat(tra_pre)
-        RT_predicted = torch.mm(T_predicted, R_predicted)
-        rot_pre_norm = quaternion_from_matrix(RT_predicted)
-        rot_pre_euler = yaw_pitch_roll(rot_pre_norm.detach().cpu().numpy())
-        rot_gt_euler = yaw_pitch_roll(rot_gt)
-        rot_pre_degree = np.rad2deg(rot_pre_euler)
-        rot_gt_degree = np.rad2deg(rot_gt_euler)
-        tra_pre = tra_pre.detach().cpu().numpy()
-        rotation_X += np.abs(rot_gt_degree[0] - rot_pre_degree[0])
-        rotation_Y += np.abs(rot_gt_degree[1] - rot_pre_degree[1])
-        rotation_Z += np.abs(rot_gt_degree[2] - rot_pre_degree[2])
-        translation_X += np.abs(tra_gt[0] - tra_pre[0])
-        translation_Y += np.abs(tra_gt[1] - tra_pre[1])
-        translation_Z += np.abs(tra_gt[2] - tra_pre[2])
+
+    R_predicted = quat2mat(rotation[0])
+    T_predicted = tvector2mat(translation[0])
+    RT_predicted = torch.mm(T_predicted, R_predicted)
+    rot_pre_norm = quaternion_from_matrix(RT_predicted)
+    rot_pre_euler = yaw_pitch_roll(rot_pre_norm.detach().cpu().numpy())
+    rot_gt_euler = yaw_pitch_roll(rot_gt)
+    rot_pre_degree = np.rad2deg(rot_pre_euler)
+    rot_gt_degree = np.rad2deg(rot_gt_euler)
+    tra_pre = translation[0].detach().cpu().numpy()
+    rotation_X += np.abs(rot_gt_degree[0] - rot_pre_degree[0])
+    rotation_Y += np.abs(rot_gt_degree[1] - rot_pre_degree[1])
+    rotation_Z += np.abs(rot_gt_degree[2] - rot_pre_degree[2])
+    translation_X += np.abs(tra_gt[0] - tra_pre[0])
+    translation_Y += np.abs(tra_gt[1] - tra_pre[1])
+    translation_Z += np.abs(tra_gt[2] - tra_pre[2])
 
     R_predicted = quat2mat(rotation[0])
     T_predicted = tvector2mat(translation[0])
     RT_predicted = torch.mm(T_predicted, R_predicted).detach().cpu().numpy()
 
     # Save Predicted Depth Map
-
-    transformed_points = np.matmul(RT_predicted, points.T)
+    GT_RTMatrix = np.matmul(cam_02_transform, np.matmul(R_rect_00, velo_to_cam))
+    transformed_points = np.matmul(RT_predicted, np.matmul(random_transform, np.matmul(GT_RTMatrix, points.T)))
     points_2d_Init = np.matmul(K, transformed_points[:-1, :])
     Z = points_2d_Init[2, :]
     x = (points_2d_Init[0, :] / Z).T
@@ -183,8 +182,8 @@ for image_file, depth_map, pointfile in zip(AICamera_image, AICamera_Point, tran
     for x_idx, y_idx, z_idx in zip(x, y, Z):
         if (z_idx > 0):
             cv2.circle(projected_img, (int(x_idx), int(y_idx)), 1, (255, 0, 0), -1)
-    smc.imsave(cf.paths['inference_img_result_path'] + "/Pretrained_KITTI_KITTITestData_Predicted.png", projected_img)
-
+    smc.imsave(cf.paths['inference_img_result_path'] + "/Pretrained_KITTI_2011_09_29/KITTITestData_Predicted_" + str(image_count) + ".png", projected_img)
+    image_count += 1
     if count % cf.network_info['freq_print'] == 0:
         print("[ROT X] : ", rotation_X / count, " [ROT Y] : ", rotation_Y / count, " [ROT Z] : ", rotation_Z / count,
               " [TRANSLATION X] : ", translation_X / count, " [TRANSLATION Y] : ", translation_Y / count,

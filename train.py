@@ -46,7 +46,7 @@ print("------------ Loss Function Setting Finish ----------------")
 learning_rate = cf.network_info['learning_rate']
 
 optimizer = set_Adam(model, learning_rate=learning_rate)
-scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[5, 10, 20], gamma=0.5)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20, 30, 40, 50, 60, 70, 80, 90], gamma=0.1)
 
 
 if os.path.isfile(os.path.join(pretrained_path, "CalibDNN_18_KITTI" + '.pth')):
@@ -97,6 +97,10 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
 
         loss = loss_function(point_cloud, translation_vector, rotation_vector,
                              translation, rotation, transform_matrix)
+
+        if not torch.isfinite(loss['total_loss']):
+            print("Loss Function --> Non-Finite Loss, Don't Calculate Loss")
+            continue
 
         loss['total_loss'].backward()
         optimizer.step()

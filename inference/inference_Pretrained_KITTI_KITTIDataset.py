@@ -1,4 +1,3 @@
-import cffi.model
 import numpy as np
 import torch.autograd
 
@@ -10,6 +9,36 @@ import time
 import imageio as smc
 
 
+fx = 7.215377e+02
+fy = 7.215377e+02
+cx = 6.095593e+02
+cy = 1.728540e+02
+
+K = np.array([7.215377e+02, 0.000000e+00, 6.095593e+02,
+              0.000000e+00, 7.215377e+02, 1.728540e+02,
+              0.000000e+00, 0.000000e+00, 1.000000e+00]).reshape(3,3)
+
+velo_to_cam_R = np.array([7.533745e-03, -9.999714e-01, -6.166020e-04, 1.480249e-02, 7.280733e-04, -9.998902e-01, 9.998621e-01, 7.523790e-03, 1.480755e-02]).reshape(3,3)
+velo_to_cam_T = np.array([-4.069766e-03, -7.631618e-02, -2.717806e-01]).reshape(3,1)
+
+velo_to_cam = np.vstack((np.hstack((velo_to_cam_R, velo_to_cam_T)), np.array([[0,0,0,1]])))
+
+R_rect_00 =  np.array([9.999239e-01, 9.837760e-03, -7.445048e-03, 0.0,
+                      -9.869795e-03, 9.999421e-01, -4.278459e-03, 0.0,
+                       7.402527e-03, 4.351614e-03, 9.999631e-01,  0.0,
+                       0.0,          0.0,          0.0,           1.0]).reshape(4,4)
+
+cam_02_transform = np.array([1.0, 0.0, 0.0, 4.485728e+01/fx,
+                             0.0, 1.0, 0.0, 2.163791e-01/fy,
+                             0.0, 0.0, 1.0, 2.745884e-03,
+                             0.0, 0.0, 0.0, 1.0]).reshape(4,4)
+
+
+print("------------ Ground Truth Rotation Translation matrix Start -----------------")
+GT_RTMatrix = np.matmul(cam_02_transform, np.matmul(R_rect_00, velo_to_cam))
+print(GT_RTMatrix)
+print("------------ Ground Truth Rotation Translation matrix Finish -----------------")
+print("")
 print("------------ GPU Setting Start ----------------")
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = False
@@ -58,6 +87,7 @@ translation_Y = np.array([0.0], dtype=np.float32)
 translation_Z = np.array([0.0], dtype=np.float32)
 
 count = 0
+image_count = 0
 for i_batch, sample_bathced in enumerate(valid_loader):
     source_depth_map = sample_bathced['source_depth_map']
     source_image = sample_bathced['source_image']
@@ -79,12 +109,6 @@ for i_batch, sample_bathced in enumerate(valid_loader):
         transform_matrix = transform_matrix.to(devices)
 
     rotation, translation = model(source_image, source_depth_map)
-
-    print(rotation[0])
-    if rotation[0].norm() != 1.:
-        rotation[0] = rotation[0] / rotation[0].norm()
-    print(rotation[0])
-    print(translation[0])
 
     rotation_predicted = rotation
     translation_predicted = translation
@@ -110,52 +134,53 @@ for i_batch, sample_bathced in enumerate(valid_loader):
         translation_Y += np.abs(tra_gt[1] - tra_pre[1])
         translation_Z += np.abs(tra_gt[2] - tra_pre[2])
 
-    # R_predicted = quat2mat(rotation[0])
-    # T_predicted = tvector2mat(translation[0])
-    # RT_predicted = torch.mm(T_predicted, R_predicted).detach().cpu().numpy()
+    R_predicted = quat2mat(rotation[0])
+    T_predicted = tvector2mat(translation[0])
+    RT_predicted = torch.mm(T_predicted, R_predicted).detach().cpu().numpy()
 
-    # Save Predicted Depth Map
-    # source_map = source_depth_map[0]
-    # gt_depth_map = target_depth_map[0]
-    # current_img = source_image[0]
-    # predicted_img = source_image[0]
-    # point_clouds = point_cloud[0][0].detach().cpu().numpy()
-    # predicted_translation_vector = translation[0].detach().cpu().numpy()
-    # predicted_rotation_vector = rotation[0].detach().cpu().numpy()
-    # gt_rt_matrix = transform_matrix[0].detach().cpu().numpy()
-    # K = K_final.detach().cpu().numpy()
-    # current_img = current_img * 127.5 + 127.5
-    # current_img = current_img.permute(1,2,0).detach().cpu().numpy()
+    source_map = source_depth_map[0]
+    gt_depth_map = target_depth_map[0]
+    current_img = source_image[0]
+    predicted_img = source_image[0]
+    point_clouds = point_cloud[0][0].detach().cpu().numpy()
+    predicted_translation_vector = translation[0].detach().cpu().numpy()
+    predicted_rotation_vector = rotation[0].detach().cpu().numpy()
+    random_transform_inverse = transform_matrix[0].detach().cpu().numpy()
+    random_transform = np.linalg.inv(random_transform_inverse)
+    K = K_final.detach().cpu().numpy()
+    current_img = current_img * 127.5 + 127.5
+    current_img = current_img.permute(1,2,0).detach().cpu().numpy()
 
-    # transformed_points = np.matmul(RT_predicted, point_clouds.T)
-    # points_2d_Init = np.matmul(K, transformed_points[:-1, :])
-    # Z = points_2d_Init[2, :]
-    # x = (points_2d_Init[0, :] / Z).T
-    # y = (points_2d_Init[1, :] / Z).T
-    # x = np.clip(x, 0.0, cf.camera_info['WIDTH'] - 1)
-    # y = np.clip(y, 0.0, cf.camera_info['HEIGHT'] - 1)
-    # projected_img = current_img.copy()
-    # for x_idx, y_idx, z_idx in zip(x, y, Z):
-    #     if (z_idx > 0):
-    #         cv2.circle(projected_img, (int(x_idx), int(y_idx)), 1, (255, 0, 0), -1)
-    #
-    # point_cloud_gt = np.matmul(gt_rt_matrix, point_clouds.T)
-    # points_2d_gt = np.matmul(K, point_cloud_gt[:-1, :])
-    # Z = points_2d_gt[2, :]
-    # x = (points_2d_gt[0, :] / Z).T
-    # y = (points_2d_gt[1, :] / Z).T
-    # x = np.clip(x, 0.0, cf.camera_info["WIDTH"] - 1)
-    # y = np.clip(y, 0.0, cf.camera_info['HEIGHT'] - 1)
-    # reprojected_img = current_img.copy()
-    # for x_idx, y_idx, z_idx in zip(x, y, Z):
-    #     if (z_idx > 0):
-    #         cv2.circle(reprojected_img, (int(x_idx), int(y_idx)), 1, (255, 0, 0), -1)
-    # smc.imsave(
-    #     cf.paths["inference_img_result_path"] + "/Pretrained_KITTI_KITTIDatset_Target.png",
-    #     reprojected_img)
-    # smc.imsave(cf.paths["inference_img_result_path"] + "/Pretrained_KITTI_KITTIDatset_Predicted.png",
-    #            projected_img)
+    transformed_points = np.matmul(RT_predicted, np.matmul(random_transform, np.matmul(GT_RTMatrix, point_clouds.T)))
+    points_2d_Init = np.matmul(K, transformed_points[:-1, :])
+    Z = points_2d_Init[2, :]
+    x = (points_2d_Init[0, :] / Z).T
+    y = (points_2d_Init[1, :] / Z).T
+    x = np.clip(x, 0.0, cf.camera_info['WIDTH'] - 1)
+    y = np.clip(y, 0.0, cf.camera_info['HEIGHT'] - 1)
+    projected_img = current_img.copy()
+    for x_idx, y_idx, z_idx in zip(x, y, Z):
+        if (z_idx > 0):
+            cv2.circle(projected_img, (int(x_idx), int(y_idx)), 1, (255, 0, 0), -1)
 
+    point_cloud_gt = np.matmul(GT_RTMatrix, point_clouds.T)
+    points_2d_gt = np.matmul(K, point_cloud_gt[:-1, :])
+    Z = points_2d_gt[2, :]
+    x = (points_2d_gt[0, :] / Z).T
+    y = (points_2d_gt[1, :] / Z).T
+    x = np.clip(x, 0.0, cf.camera_info["WIDTH"] - 1)
+    y = np.clip(y, 0.0, cf.camera_info['HEIGHT'] - 1)
+    reprojected_img = current_img.copy()
+    for x_idx, y_idx, z_idx in zip(x, y, Z):
+        if (z_idx > 0):
+            cv2.circle(reprojected_img, (int(x_idx), int(y_idx)), 1, (255, 0, 0), -1)
+    smc.imsave(
+        cf.paths["inference_img_result_path"] + "/Pretrained_KITTI/KITTIDatset_Target_" + str(image_count) + ".png",
+        reprojected_img)
+    smc.imsave(cf.paths["inference_img_result_path"] + "/Pretrained_KITTI/KITTIDatset_Predicted_" + str(image_count) + ".png",
+               projected_img)
+
+    image_count += 1
     if i_batch % cf.network_info['freq_print'] == 0:
         print('Test: [{0}/{1}] Evaluation Metrics Success'.format(i_batch, len(valid_loader)))
         print("[ROT X] : ", rotation_X / count, " [ROT Y] : ", rotation_Y / count, " [ROT Z] : ", rotation_Z / count,
