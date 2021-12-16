@@ -46,7 +46,7 @@ print("------------ Loss Function Setting Finish ----------------")
 learning_rate = cf.network_info['learning_rate']
 
 optimizer = set_Adam(model, learning_rate=learning_rate)
-scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20, 30, 40, 50, 60, 70, 80, 90], gamma=0.1)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20, 50, 70], gamma=0.5)
 
 
 if os.path.isfile(os.path.join(pretrained_path, "CalibDNN_18_KITTI" + '.pth')):
