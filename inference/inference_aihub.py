@@ -35,16 +35,16 @@ print("------------ GPU Setting Finish ----------------")
 print("")
 print("")
 print("------------ Model Setting Start ----------------")
-model = CalibDNN18(18, pretrained=os.path.join(pretrained_path, "CalibDNN_18_ALL" + '.pth')).to(devices)
+model = CalibDNN18(18, pretrained=os.path.join(pretrained_path, "CalibDNN_18_KITTI" + '.pth')).to(devices)
 print("------------ Model Summary ----------------")
 summary(model, [(1, 3, 480, 640), (1, 3, 480, 640)], devices)
 print("------------ Model Setting Finish ----------------")
 print("")
 K_final = torch.tensor(K, dtype=torch.float32).to(devices)
 
-if os.path.isfile(os.path.join(pretrained_path, "CalibDNN_18_ALL" + '.pth')):
+if os.path.isfile(os.path.join(pretrained_path, "CalibDNN_18_KITTI" + '.pth')):
     print("Pretrained Model Open : ", model.get_name() + ".pth")
-    checkpoint = load_weight_file(os.path.join(pretrained_path, "CalibDNN_18_ALL" + '.pth'))
+    checkpoint = load_weight_file(os.path.join(pretrained_path, "CalibDNN_18_KITTI" + '.pth'))
     start_epoch = checkpoint['epoch']
     load_weight_parameter(model, checkpoint['state_dict'])
 else:

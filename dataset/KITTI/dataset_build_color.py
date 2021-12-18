@@ -155,8 +155,6 @@ for img_name, cloud_name in zip(imgs_files, point_files):
     smc.imsave(depth_maps_transformed_folder + "/" + img_name[-14:], reprojected_img)
 
     GT_RTMatrix = np.matmul(cam_02_transform, np.matmul(R_rect_00, velo_to_cam))
-
-
     points_2d = np.matmul(K, np.matmul(GT_RTMatrix, points.T)[:-1, :])
 
     Z = points_2d[2,:]

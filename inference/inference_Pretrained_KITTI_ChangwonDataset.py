@@ -8,6 +8,10 @@ from utils.AverageMeter import *
 import time
 import imageio as smc
 
+GT_RTMatrix = np.array([372.987160, 339.659994, -38.710366, -82.675118467,
+                               -11.669059, 208.264253, -368.939818, -171.438409027,
+                               -0.035360, 0.994001, -0.103494, -0.179826270,
+                                     0.0, 0.0, 0.0, 1.0]).reshape(4, 4)
 
 print("------------ GPU Setting Start ----------------")
 torch.backends.cudnn.enabled = True
@@ -36,7 +40,7 @@ print("")
 K_final = torch.tensor(cf.K_changwon, dtype=torch.float32).to(devices)
 
 
-if os.path.isfile(os.path.join(pretrained_path, model.get_name() + '.pth')):
+if os.path.isfile(os.path.join(pretrained_path, "CalibDNN_18_KITTI" + '.pth')):
     print("Pretrained Model Open : ", model.get_name() + ".pth")
     checkpoint = load_weight_file(os.path.join(pretrained_path, "CalibDNN_18_KITTI" + '.pth'))
     start_epoch = checkpoint['epoch']
@@ -56,6 +60,7 @@ translation_Y = np.array([0.0], dtype=np.float32)
 translation_Z = np.array([0.0], dtype=np.float32)
 
 count = 0
+image_count = 0
 for i_batch, sample_bathced in enumerate(valid_loader):
 
     source_depth_map = sample_bathced['source_depth_map']
@@ -78,12 +83,6 @@ for i_batch, sample_bathced in enumerate(valid_loader):
         transform_matrix = transform_matrix.to(devices)
 
     rotation, translation = model(source_image, source_depth_map)
-
-    print(rotation[0])
-    if rotation[0].norm() != 1.:
-        rotation[0] = rotation[0] / rotation[0].norm()
-    print(rotation[0])
-    print(translation[0])
 
     rotation_predicted = rotation
     translation_predicted = translation
@@ -113,7 +112,6 @@ for i_batch, sample_bathced in enumerate(valid_loader):
     T_predicted = tvector2mat(translation[0])
     RT_predicted = torch.mm(T_predicted, R_predicted).detach().cpu().numpy()
 
-    # Save Predicted Depth Map
     source_map = source_depth_map[0]
     gt_depth_map = target_depth_map[0]
     current_img = source_image[0]
@@ -121,13 +119,14 @@ for i_batch, sample_bathced in enumerate(valid_loader):
     point_clouds = point_cloud[0][0].detach().cpu().numpy()
     predicted_translation_vector = translation[0].detach().cpu().numpy()
     predicted_rotation_vector = rotation[0].detach().cpu().numpy()
-    gt_rt_matrix = transform_matrix[0].detach().cpu().numpy()
+    random_transform_inverse = transform_matrix[0].detach().cpu().numpy()
+    random_transform = np.linalg.inv(random_transform_inverse)
     K = K_final.detach().cpu().numpy()
     current_img = current_img * 127.5 + 127.5
-    current_img = current_img.permute(1,2,0).detach().cpu().numpy()
+    current_img = current_img.permute(1, 2, 0).detach().cpu().numpy()
 
-    transformed_points = np.matmul(RT_predicted, point_clouds.T)
-    points_2d_Init = np.matmul(K, transformed_points[:-1, :])
+    transformed_points = np.matmul(GT_RTMatrix, np.matmul(RT_predicted, np.matmul(random_transform, point_clouds.T)))
+    points_2d_Init = transformed_points
     Z = points_2d_Init[2, :]
     x = (points_2d_Init[0, :] / Z).T
     y = (points_2d_Init[1, :] / Z).T
@@ -138,8 +137,8 @@ for i_batch, sample_bathced in enumerate(valid_loader):
         if (z_idx > 0):
             cv2.circle(projected_img, (int(x_idx), int(y_idx)), 1, (255, 0, 0), -1)
 
-    point_cloud_gt = np.matmul(gt_rt_matrix, point_clouds.T)
-    points_2d_gt = np.matmul(K, point_cloud_gt[:-1, :])
+    point_cloud_gt = np.matmul(GT_RTMatrix, point_clouds.T)
+    points_2d_gt = point_cloud_gt
     Z = points_2d_gt[2, :]
     x = (points_2d_gt[0, :] / Z).T
     y = (points_2d_gt[1, :] / Z).T
@@ -150,11 +149,12 @@ for i_batch, sample_bathced in enumerate(valid_loader):
         if (z_idx > 0):
             cv2.circle(reprojected_img, (int(x_idx), int(y_idx)), 1, (255, 0, 0), -1)
     smc.imsave(
-        cf.paths["inference_img_result_path"] + "/Pretrained_KITTI_ChangwonDatset_Target.png",
+        cf.paths["inference_img_result_path"] + "/Pretrained_KITTI/ChangwonDataset_Target_" + str(image_count) + ".png",
         reprojected_img)
-    smc.imsave(cf.paths["inference_img_result_path"] + "/Pretrained_KITTI_ChangwonDatset_Predicted.png",
+    smc.imsave(cf.paths["inference_img_result_path"] + "/Pretrained_KITTI/ChangwonDataset_Predicted_" + str(image_count) + ".png",
                projected_img)
 
+    image_count += 1
     if i_batch % cf.network_info['freq_print'] == 0:
         print('Test: [{0}/{1}] Evaluation Metrics Success'.format(i_batch, len(valid_loader)))
         print("[ROT X] : ", rotation_X / count, " [ROT Y] : ", rotation_Y / count, " [ROT Z] : ", rotation_Z / count,

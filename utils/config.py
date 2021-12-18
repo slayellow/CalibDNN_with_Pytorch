@@ -17,12 +17,46 @@ paths = dict(
 )
 
 # 카메라 관련 파라메타
+KITTI_velo_to_cam_R = np.array(
+    [7.533745e-03, -9.999714e-01, -6.166020e-04, 1.480249e-02, 7.280733e-04, -9.998902e-01, 9.998621e-01, 7.523790e-03,
+     1.480755e-02]).reshape(3, 3)
+KITTI_velo_to_cam_T = np.array([-4.069766e-03, -7.631618e-02, -2.717806e-01]).reshape(3, 1)
 
-camera_info = dict(
+KITTI_Info = dict(
     WIDTH = 1242,
     HEIGHT = 375,
+
+    fx = 7.215377e+02,
+    fy = 7.215377e+02,
+    cx = 6.095593e+02,
+    cy = 1.728540e+02,
+
+    K = np.array([7.215377e+02, 0.000000e+00, 6.095593e+02,
+              0.000000e+00, 7.215377e+02, 1.728540e+02,
+              0.000000e+00, 0.000000e+00, 1.000000e+00]).reshape(3,3),
+
+
+    velo_to_cam = np.vstack((np.hstack((KITTI_velo_to_cam_R, KITTI_velo_to_cam_T)), np.array([[0,0,0,1]]))),
+
+    R_rect_00 =  np.array([9.999239e-01, 9.837760e-03, -7.445048e-03, 0.0,
+                      -9.869795e-03, 9.999421e-01, -4.278459e-03, 0.0,
+                       7.402527e-03, 4.351614e-03, 9.999631e-01,  0.0,
+                       0.0,          0.0,          0.0,           1.0]).reshape(4,4),
+
+    cam_02_transform = np.array([1.0, 0.0, 0.0, 4.485728e+01/7.215377e+02,
+                             0.0, 1.0, 0.0, 2.163791e-01/7.215377e+02,
+                             0.0, 0.0, 1.0, 2.745884e-03,
+                             0.0, 0.0, 0.0, 1.0]).reshape(4,4),
+    save_checkpoint_name = "CalibDNN_KITTI_ROT20_TR2"
+
+)
+
+Changwon_Info = dict(
     WIDTH_CHANGWON = 640,
     HEIGHT_CHANGWON = 480,
+    K_changwon = np.array([384.8557, 0, 328.4401,
+              0, 345.4014, 245.6107,
+              0, 0, 1]).reshape(3, 3),
 
     fx = 7.215377e+02,
     fy = 7.215377e+02,
@@ -40,31 +74,17 @@ camera_info = dict(
                                      0.0, 0.0, 0.0, 1.0]).reshape(4, 4)
 )
 
-fx_scaled = 2 * camera_info['fx'] / np.float32(camera_info['WIDTH'])
-fy_scaled = 2 * camera_info['fy'] / np.float32(camera_info['HEIGHT'])
-cx_scaled = -1 * 2 * (camera_info['cx'] - 1.0) / np.float32(camera_info['WIDTH'])
-cy_scaled = -1 * 2 * (camera_info['cy'] - 1.0) / np.float32(camera_info['HEIGHT'])
-
-camera_intrinsic_parameter = np.array([[fx_scaled, 0.0, cx_scaled],
-                                       [0.0, fy_scaled, cy_scaled],
-                                       [0.0, 0.0, 1.0]], dtype= np.float32)
-
-K = np.array([7.215377e+02, 0.000000e+00, 6.095593e+02, 0.000000e+00, 7.215377e+02, 1.728540e+02, 0.000000e+00, 0.000000e+00, 1.000000e+00]).reshape(3,3)
-K_changwon = np.array([384.8557, 0, 328.4401,
-              0, 345.4014, 245.6107,
-              0, 0, 1]).reshape(3, 3)
-
-# 네트워크 구성 관련 파라메타
-
 network_info = dict(
     rotation_weight=1.0,
     translation_weight=2.0,
-    depth_map_loss_weight=1.0,
     point_cloud_loss_weight=0.5,
+    rotation_range = 20.0,             # dataset random transformation rotation range ( 20.0, 10.0, 5.0, 2.0, 1.0 )
+    translation_range = 2.0,           # dataset random transformation translation range ( 2.0, 1.0, 0.5, 0.2, 0.1 )
     batch_size = 24,                        # batch_size take during training
     epochs = 100,                            # total number of epoch
-    learning_rate = 0.0001,                   # learining rate        3e-4
+    learning_rate = 0.0001,                   # learining rate        1e-4
     beta1 = 0.9,                            # momentum term for Adam Optimizer
     freq_print = 10,
-    num_worker = 4
+    num_worker = 4,
+    learning_scheduler=[20, 50, 70]
 )

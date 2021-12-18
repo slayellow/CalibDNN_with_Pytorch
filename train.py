@@ -22,22 +22,24 @@ print("------------ GPU Setting Finish ----------------")
 print("")
 print("------------ Dataset Setting Start ----------------")
 # dataset test code
-trainingset = CalibDNNDataset(cf.paths['dataset_path'], training=True)
+trainingset = CalibDNNDataset(cf.paths['dataset_path'], cf.network_info["rotation_range"],
+                              cf.network_info["translation_range"], training=True)
 data_loader = get_loader(trainingset, batch_size=cf.network_info['batch_size'], shuffle=True,
                          num_worker=cf.network_info['num_worker'])
 print("------------ Training Dataset Setting Finish ----------------")
-validationset = CalibDNNDataset(cf.paths['dataset_path'], training=False)
+validationset = CalibDNNDataset(cf.paths['dataset_path'], cf.network_info["rotation_range"],
+                                cf.network_info["translation_range"], training=False)
 valid_loader = get_loader(validationset, batch_size=cf.network_info['batch_size'], shuffle=False,
                           num_worker=cf.network_info['num_worker'])
 print("------------ Validation Dataset Setting Finish ----------------")
 print("")
 print("------------ Model Setting Start ----------------")
-model = CalibDNN18(18, pretrained=os.path.join(pretrained_path, "CalibDNN_18_KITTI" + '.pth')).to(devices)
+model = CalibDNN18(18, pretrained=os.path.join(pretrained_path, cf.KITTI_Info["save_checkpoint_name"]+ '.pth')).to(devices)
 print("------------ Model Summary ----------------")
 summary(model, [(1, 3, 375, 1242), (1, 3, 375, 1242)], devices)
 print("------------ Model Setting Finish ----------------")
 print("")
-K_final = torch.tensor(cf.K, dtype=torch.float32).to(devices)
+K_final = torch.tensor(cf.KITTI_Info["K"], dtype=torch.float32).to(devices)
 print("------------ Loss Function Setting Start ----------------")
 loss_function = TotalLoss(rotation_weight=cf.network_info['rotation_weight'],
                           translation_weight=cf.network_info['translation_weight'],
@@ -46,12 +48,12 @@ print("------------ Loss Function Setting Finish ----------------")
 learning_rate = cf.network_info['learning_rate']
 
 optimizer = set_Adam(model, learning_rate=learning_rate)
-scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20, 50, 70], gamma=0.5)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=cf.network_info["learning_scheduler"], gamma=0.5)
 
 
-if os.path.isfile(os.path.join(pretrained_path, "CalibDNN_18_KITTI" + '.pth')):
+if os.path.isfile(os.path.join(pretrained_path, cf.KITTI_Info["save_checkpoint_name"] + '.pth')):
     print("Pretrained Model Open : ", model.get_name() + ".pth")
-    checkpoint = load_weight_file(os.path.join(pretrained_path, "CalibDNN_18_KITTI" + '.pth'))
+    checkpoint = load_weight_file(os.path.join(pretrained_path, cf.KITTI_Info["save_checkpoint_name"] + '.pth'))
     start_epoch = checkpoint['epoch']
     load_weight_parameter(model, checkpoint['state_dict'])
     load_weight_parameter(optimizer, checkpoint['optimizer'])
@@ -60,6 +62,8 @@ else:
     start_epoch = 0
 print("")
 print("------------ Train Start ----------------")
+train_iteration_10_loss = list()
+valid_iteration_10_loss = list()
 for epoch in range(start_epoch, cf.network_info['epochs']):
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -76,7 +80,6 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
 
         source_depth_map = sample_bathced['source_depth_map']
         source_image = sample_bathced['source_image']
-        target_depth_map = sample_bathced['target_depth_map']
         point_cloud = sample_bathced['point_cloud']
         rotation_vector = sample_bathced['rotation_vector'].to(torch.float32)
         translation_vector = sample_bathced['translation_vector'].to(torch.float32)
@@ -85,7 +88,6 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         if gpu_check:
             source_depth_map = source_depth_map.to(devices)
             source_image = source_image.to(devices)
-            target_depth_map = target_depth_map.to(devices)
             point_cloud = point_cloud.to(devices)
             rotation_vector = rotation_vector.to(devices)
             translation_vector = translation_vector.to(devices)
@@ -112,6 +114,7 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         end = time.time()
 
         if i_batch % cf.network_info['freq_print'] == 0:
+            train_iteration_10_loss.append(losses.avg)
             print('Epoch: [{0}][{1}/{2}] \t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f}) \t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f}) \t'
@@ -138,7 +141,6 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
 
         source_depth_map = sample_bathced['source_depth_map']
         source_image = sample_bathced['source_image']
-        target_depth_map = sample_bathced['target_depth_map']
         point_cloud = sample_bathced['point_cloud']
         rotation_vector = sample_bathced['rotation_vector'].to(torch.float32)
         translation_vector = sample_bathced['translation_vector'].to(torch.float32)
@@ -147,7 +149,6 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         if gpu_check:
             source_depth_map = source_depth_map.to(devices)
             source_image = source_image.to(devices)
-            target_depth_map = target_depth_map.to(devices)
             point_cloud = point_cloud.to(devices)
             rotation_vector = rotation_vector.to(devices)
             translation_vector = translation_vector.to(devices)
@@ -166,6 +167,7 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         end = time.time()
 
         if i_batch % cf.network_info['freq_print'] == 0:
+            valid_iteration_10_loss.append(valid_losses.avg)
             print('Test: [{0}/{1}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
@@ -177,6 +179,10 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         'epoch': epoch + 1,
         'arch': model.get_name(),
         'state_dict': model.state_dict(),
-        'optimizer': optimizer.state_dict()}, True, os.path.join(pretrained_path, "CalibDNN_18_KITTI"))
+        'optimizer': optimizer.state_dict()}, True, os.path.join(pretrained_path, cf.KITTI_Info["save_checkpoint_name"]))
 
+train_iteration_10_loss = np.array(train_iteration_10_loss)
+valid_iteration_10_loss = np.array(valid_iteration_10_loss)
+np.save("train_iteration_loss.npy", train_iteration_10_loss)
+np.save("valid_iteration_loss.npy", valid_iteration_10_loss)
 print("Train Finished!!")
