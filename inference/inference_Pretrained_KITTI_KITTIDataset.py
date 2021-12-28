@@ -1,6 +1,5 @@
 import numpy as np
 import torch.autograd
-
 from dataset.dataset import *
 from model.CalibDNN import *
 from model.loss import *
@@ -9,33 +8,9 @@ import time
 import imageio as smc
 
 
-fx = 7.215377e+02
-fy = 7.215377e+02
-cx = 6.095593e+02
-cy = 1.728540e+02
-
-K = np.array([7.215377e+02, 0.000000e+00, 6.095593e+02,
-              0.000000e+00, 7.215377e+02, 1.728540e+02,
-              0.000000e+00, 0.000000e+00, 1.000000e+00]).reshape(3,3)
-
-velo_to_cam_R = np.array([7.533745e-03, -9.999714e-01, -6.166020e-04, 1.480249e-02, 7.280733e-04, -9.998902e-01, 9.998621e-01, 7.523790e-03, 1.480755e-02]).reshape(3,3)
-velo_to_cam_T = np.array([-4.069766e-03, -7.631618e-02, -2.717806e-01]).reshape(3,1)
-
-velo_to_cam = np.vstack((np.hstack((velo_to_cam_R, velo_to_cam_T)), np.array([[0,0,0,1]])))
-
-R_rect_00 =  np.array([9.999239e-01, 9.837760e-03, -7.445048e-03, 0.0,
-                      -9.869795e-03, 9.999421e-01, -4.278459e-03, 0.0,
-                       7.402527e-03, 4.351614e-03, 9.999631e-01,  0.0,
-                       0.0,          0.0,          0.0,           1.0]).reshape(4,4)
-
-cam_02_transform = np.array([1.0, 0.0, 0.0, 4.485728e+01/fx,
-                             0.0, 1.0, 0.0, 2.163791e-01/fy,
-                             0.0, 0.0, 1.0, 2.745884e-03,
-                             0.0, 0.0, 0.0, 1.0]).reshape(4,4)
-
-
 print("------------ Ground Truth Rotation Translation matrix Start -----------------")
-GT_RTMatrix = np.matmul(cam_02_transform, np.matmul(R_rect_00, velo_to_cam))
+GT_RTMatrix = np.matmul(cf.KITTI_Info['cam_02_transform'], np.matmul(cf.KITTI_Info['R_rect_00'],
+                                                                     cf.KITTI_Info['velo_to_cam']))
 print(GT_RTMatrix)
 print("------------ Ground Truth Rotation Translation matrix Finish -----------------")
 print("")
@@ -49,35 +24,33 @@ if gpu_check:
     print("I have GPU!")
 else:
     print("I don't have GPU!")
+K_final = torch.tensor(cf.KITTI_Info['K'], dtype=torch.float32).to(devices)
+GT_RTMatrix_torch = torch.tensor(GT_RTMatrix, dtype=torch.float32).to(devices)
 print("------------ GPU Setting Finish ----------------")
 print("")
 print("------------ Dataset Setting Start ----------------")
-validationset = CalibDNNDataset(cf.paths['dataset_path'], training=False)
-valid_loader = get_loader(validationset, batch_size=2, shuffle=False,
-                          num_worker=cf.network_info['num_worker'])
+validationset = CalibDNNDataset(cf.paths['dataset_path'], cf.inference_info["rotation_range"],
+                                cf.inference_info["translation_range"], training=False)
+valid_loader = get_loader(validationset, batch_size=cf.inference_info['batch_size'], shuffle=False,
+                          num_worker=cf.inference_info['num_worker'])
 print("------------ Validation Dataset Setting Finish ----------------")
 print("")
 print("------------ Model Setting Start ----------------")
-model = CalibDNN18(18,  pretrained=os.path.join(pretrained_path, "CalibDNN_18_KITTI" + '.pth')).to(devices)
-print("------------ Model Summary ----------------")
-summary(model, [(1, 3, 375, 1242), (1, 3, 375, 1242)], devices)
-print("------------ Model Setting Finish ----------------")
-print("")
-K_final = torch.tensor(cf.K, dtype=torch.float32).to(devices)
-
-
-if os.path.isfile(os.path.join(pretrained_path, model.get_name() + '.pth')):
-    print("Pretrained Model Open : ", model.get_name() + ".pth")
-    checkpoint = load_weight_file(os.path.join(pretrained_path, "CalibDNN_18_KITTI" + '.pth'))
-    start_epoch = checkpoint['epoch']
-    load_weight_parameter(model, checkpoint['state_dict'])
-else:
-    print("Pretrained Parameter Open : No Pretrained Model")
-    start_epoch = 0
+models = []
+weights = cf.inference_info['weights']
+for idx in range(len(weights)):
+    model = CalibDNN18(18,  pretrained=weights[idx]).to(devices)
+    if os.path.isfile(weights[idx]):
+        print("Pretrained Model Open : ", weights[idx])
+        checkpoint = load_weight_file(weights[idx])
+        load_weight_parameter(model, checkpoint['state_dict'])
+    else:
+        print("Pretrained Parameter Open : No Pretrained Model")
+    model.eval()
+    models.append(model)
+    print("Iterative Refinement ", idx, " Model Load")
 print("")
 print("------------ Inference Start ----------------")
-
-model.eval()
 
 rotation_X = np.array([0.0], dtype=np.float32)
 rotation_Y = np.array([0.0], dtype=np.float32)
@@ -85,13 +58,13 @@ rotation_Z = np.array([0.0], dtype=np.float32)
 translation_X = np.array([0.0], dtype=np.float32)
 translation_Y = np.array([0.0], dtype=np.float32)
 translation_Z = np.array([0.0], dtype=np.float32)
-
 count = 0
 image_count = 0
+
 for i_batch, sample_bathced in enumerate(valid_loader):
+    count += 1
     source_depth_map = sample_bathced['source_depth_map']
     source_image = sample_bathced['source_image']
-    target_depth_map = sample_bathced['target_depth_map']
     expected_transform = sample_bathced['transform_matrix']
     point_cloud = sample_bathced['point_cloud']
     rotation_vector = sample_bathced['rotation_vector'].to(torch.float32)
@@ -101,45 +74,77 @@ for i_batch, sample_bathced in enumerate(valid_loader):
     if gpu_check:
         source_depth_map = source_depth_map.to(devices)
         source_image = source_image.to(devices)
-        target_depth_map = target_depth_map.to(devices)
         expected_transform = expected_transform.to(devices)
         point_cloud = point_cloud.to(devices)
         rotation_vector = rotation_vector.to(devices)
         translation_vector = translation_vector.to(devices)
         transform_matrix = transform_matrix.to(devices)
+    model_count = 0
+    RTs = [transform_matrix[0].inverse()]
+    with torch.no_grad():
+        for model in models:
+            rotation, translation = model(source_image, source_depth_map)
+            R_predicted = quat2mat(rotation[0])
+            T_predicted = tvector2mat(translation[0])
+            RT_predicted = torch.mm(T_predicted, R_predicted)
+            RTs.append(torch.mm(RTs[model_count], RT_predicted))
 
-    rotation, translation = model(source_image, source_depth_map)
+            points = point_cloud[0][0]
+            points_in_cam_axis = torch.mm(GT_RTMatrix_torch, points.T)
 
-    rotation_predicted = rotation
-    translation_predicted = translation
-    rotation_gt = rotation_vector.detach().cpu().numpy()
-    translation_gt = translation_vector.detach().cpu().numpy()
+            transformed_points = torch.mm(RTs[-1], points_in_cam_axis)
+            points_2d = torch.mm(K_final, transformed_points[:-1, :])
 
-    count += translation_gt.shape[0]
+            Z = points_2d[2, :]
+            x = (points_2d[0, :] / Z).T
+            y = (points_2d[1, :] / Z).T
 
-    for rot_pre, rot_gt, tra_pre, tra_gt in zip(rotation_predicted, rotation_gt, translation_predicted, translation_gt):
-        R_predicted = quat2mat(rot_pre)
-        T_predicted = tvector2mat(tra_pre)
-        RT_predicted = torch.mm(T_predicted, R_predicted)
-        rot_pre_norm = quaternion_from_matrix(RT_predicted)
-        rot_pre_euler = yaw_pitch_roll(rot_pre_norm.detach().cpu().numpy())
-        rot_gt_euler = yaw_pitch_roll(rot_gt)
-        rot_pre_degree = np.rad2deg(rot_pre_euler)
-        rot_gt_degree = np.rad2deg(rot_gt_euler)
-        tra_pre = tra_pre.detach().cpu().numpy()
-        rotation_X += np.abs(rot_gt_degree[0] - rot_pre_degree[0])
-        rotation_Y += np.abs(rot_gt_degree[1] - rot_pre_degree[1])
-        rotation_Z += np.abs(rot_gt_degree[2] - rot_pre_degree[2])
-        translation_X += np.abs(tra_gt[0] - tra_pre[0])
-        translation_Y += np.abs(tra_gt[1] - tra_pre[1])
-        translation_Z += np.abs(tra_gt[2] - tra_pre[2])
+            x = torch.clamp(x, 0.0, cf.KITTI_Info["WIDTH"] - 1).to(torch.long)
+            y = torch.clamp(y, 0.0, cf.KITTI_Info["HEIGHT"] - 1).to(torch.long)
+
+            Z_Index = torch.where(Z > 0)[0]
+            source_map = torch.zeros((cf.KITTI_Info["HEIGHT"], cf.KITTI_Info["WIDTH"])).to(devices)
+            source_map[y[Z_Index], x[Z_Index]] = Z[Z_Index]
+
+            smc.imsave(
+                cf.paths["inference_img_result_path"] + "/Pretrained_KITTI/predicted_" + str(
+                    image_count) + "_" + str(model_count) + ".png",
+                source_map.detach().cpu().numpy())
+
+            model_count += 1
+            source_map[0:5, :] = 0.0
+            source_map[:, 0:5] = 0.0
+            source_map[source_map.shape[0] - 5:, :] = 0.0
+            source_map[:, source_map.shape[1] - 5:] = 0.0
+            source_map = (source_map - 40.0) / 40.0
+            source_map = torch.repeat_interleave(torch.unsqueeze(source_map, dim=0), 3, dim=0)
+            source_map = torch.unsqueeze(source_map, dim=0)
+            # source_map = torch.repeat_interleave(torch.unsqueeze(source_map, dim=0), 1, dim=0)
+            source_depth_map = source_map
+
+    predicted_Matrix = torch.mm(transform_matrix[0], RTs[-1])
+
+    rotation_gt = rotation_vector[0].detach().cpu().numpy()
+    translation_gt = translation_vector[0].detach().cpu().numpy()
+    tra_pre = predicted_Matrix[:, 3]
+    rot_pre_norm = quaternion_from_matrix(predicted_Matrix)
+    rot_pre_euler = yaw_pitch_roll(rot_pre_norm.detach().cpu().numpy())
+    rot_gt_euler = yaw_pitch_roll(rotation_gt)
+    rot_pre_degree = np.rad2deg(rot_pre_euler)
+    rot_gt_degree = np.rad2deg(rot_gt_euler)
+    tra_pre = tra_pre.detach().cpu().numpy()
+    rotation_X += np.abs(rot_gt_degree[0] - rot_pre_degree[0])
+    rotation_Y += np.abs(rot_gt_degree[1] - rot_pre_degree[1])
+    rotation_Z += np.abs(rot_gt_degree[2] - rot_pre_degree[2])
+    translation_X += np.abs(translation_gt[0] - tra_pre[0])
+    translation_Y += np.abs(translation_gt[1] - tra_pre[1])
+    translation_Z += np.abs(translation_gt[2] - tra_pre[2])
 
     R_predicted = quat2mat(rotation[0])
     T_predicted = tvector2mat(translation[0])
-    RT_predicted = torch.mm(T_predicted, R_predicted).detach().cpu().numpy()
+    RT_predicted = predicted_Matrix.detach().cpu().numpy()
 
     source_map = source_depth_map[0]
-    gt_depth_map = target_depth_map[0]
     current_img = source_image[0]
     predicted_img = source_image[0]
     point_clouds = point_cloud[0][0].detach().cpu().numpy()
@@ -156,8 +161,8 @@ for i_batch, sample_bathced in enumerate(valid_loader):
     Z = points_2d_Init[2, :]
     x = (points_2d_Init[0, :] / Z).T
     y = (points_2d_Init[1, :] / Z).T
-    x = np.clip(x, 0.0, cf.camera_info['WIDTH'] - 1)
-    y = np.clip(y, 0.0, cf.camera_info['HEIGHT'] - 1)
+    x = np.clip(x, 0.0, cf.KITTI_Info['WIDTH'] - 1)
+    y = np.clip(y, 0.0, cf.KITTI_Info['HEIGHT'] - 1)
     projected_img = current_img.copy()
     for x_idx, y_idx, z_idx in zip(x, y, Z):
         if (z_idx > 0):
@@ -168,16 +173,16 @@ for i_batch, sample_bathced in enumerate(valid_loader):
     Z = points_2d_gt[2, :]
     x = (points_2d_gt[0, :] / Z).T
     y = (points_2d_gt[1, :] / Z).T
-    x = np.clip(x, 0.0, cf.camera_info["WIDTH"] - 1)
-    y = np.clip(y, 0.0, cf.camera_info['HEIGHT'] - 1)
+    x = np.clip(x, 0.0, cf.KITTI_Info["WIDTH"] - 1)
+    y = np.clip(y, 0.0, cf.KITTI_Info['HEIGHT'] - 1)
     reprojected_img = current_img.copy()
     for x_idx, y_idx, z_idx in zip(x, y, Z):
         if (z_idx > 0):
             cv2.circle(reprojected_img, (int(x_idx), int(y_idx)), 1, (255, 0, 0), -1)
     smc.imsave(
-        cf.paths["inference_img_result_path"] + "/Pretrained_KITTI/KITTIDatset_Target_" + str(image_count) + ".png",
+        cf.paths["inference_img_result_path"] + "/Pretrained_KITTI/KITTIDatset_" + str(image_count) + "_Target.png",
         reprojected_img)
-    smc.imsave(cf.paths["inference_img_result_path"] + "/Pretrained_KITTI/KITTIDatset_Predicted_" + str(image_count) + ".png",
+    smc.imsave(cf.paths["inference_img_result_path"] + "/Pretrained_KITTI/KITTIDatset_" + str(image_count) + "_Predicted.png",
                projected_img)
 
     image_count += 1

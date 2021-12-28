@@ -80,8 +80,8 @@ def set_SGD(model, learning_rate, momentum=0.9, weight_decay=1e-4):
     return torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum, weight_decay=weight_decay)
 
 
-def set_Adam(model, learning_rate):
-    return torch.optim.Adam(model.parameters(), lr=learning_rate)
+def set_Adam(model, learning_rate, decay=5e-6):
+    return torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=decay)
 
 
 def set_Adagrad(model, learning_rate):

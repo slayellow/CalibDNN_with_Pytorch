@@ -56,21 +56,22 @@ print("------------ GPU Setting Finish ----------------")
 print("")
 print("")
 print("------------ Model Setting Start ----------------")
-model = CalibDNN18(18,  pretrained=os.path.join(pretrained_path, "CalibDNN_18_KITTI" + '.pth')).to(devices)
-print("------------ Model Summary ----------------")
-summary(model, [(1, 3, 375, 1242), (1, 3, 375, 1242)], devices)
-print("------------ Model Setting Finish ----------------")
+models = []
+weights = cf.inference_info['weights']
+for idx in range(len(weights)):
+    model = CalibDNN18(18,  pretrained=weights[idx]).to(devices)
+    if os.path.isfile(weights[idx]):
+        print("Pretrained Model Open : ", weights[idx])
+        checkpoint = load_weight_file(weights[idx])
+        load_weight_parameter(model, checkpoint['state_dict'])
+    else:
+        print("Pretrained Parameter Open : No Pretrained Model")
+    model.eval()
+    models.append(model)
+    print("Iterative Refinement ", idx, " Model Load")
 print("")
 K_final = torch.tensor(K, dtype=torch.float32).to(devices)
 
-if os.path.isfile(os.path.join(pretrained_path, "CalibDNN_18_KITTI" + '.pth')):
-    print("Pretrained Model Open : ", model.get_name() + ".pth")
-    checkpoint = load_weight_file(os.path.join(pretrained_path, "CalibDNN_18_KITTI" + '.pth'))
-    start_epoch = checkpoint['epoch']
-    load_weight_parameter(model, checkpoint['state_dict'])
-else:
-    print("Pretrained Parameter Open : No Pretrained Model")
-    start_epoch = 0
 print("")
 print("------------ Inference Start ----------------")
 
@@ -113,7 +114,7 @@ for image_file, depth_map, pointfile, angle in zip(AICamera_image, AICamera_Poin
     for x_idx, y_idx,z_idx in zip(x, y, Z):
         if(z_idx>0):
             cv2.circle(reprojected_img, (int(x_idx), int(y_idx)), 1, (255, 0, 0), -1)
-    smc.imsave(cf.paths['inference_img_result_path'] + "/Pretrained_KITTI_2011_09_29/KITTITestData_Target_" + str(image_count) + ".png", reprojected_img)
+    smc.imsave(cf.paths['inference_img_result_path'] + "/Pretrained_KITTI_2011_09_29/KITTITestData_" + str(image_count) +"_Target"  + ".png", reprojected_img)
 
     # Predict
     source_image = input_image.copy()
@@ -138,20 +139,62 @@ for image_file, depth_map, pointfile, angle in zip(AICamera_image, AICamera_Poin
 
     angle = np.float32(angle)
     random_transform = angle.reshape(4, 4)
-
+    random_transform_inv = np.linalg.inv(random_transform)
+    transform_matrix = torch.tensor(random_transform_inv, dtype=torch.float32).to(devices)
+    point_cloud = torch.tensor(points, dtype=torch.float32).to(devices)
+    GT_RTMatrix_torch = torch.tensor(GT_RTMatrix, dtype = torch.float32).to(devices)
     if gpu_check:
-        source_map = source_map.to(torch.float32)
+        source_depth_map = source_map.to(torch.float32)
         source_image = source_image.to(torch.float32)
 
-    rotation, translation = model(source_image, source_map)
+    model_count = 0
+    RTs = [transform_matrix.inverse()]
+    with torch.no_grad():
+        for model in models:
+            rotation, translation = model(source_image, source_depth_map)
+            R_predicted = quat2mat(rotation[0])
+            T_predicted = tvector2mat(translation[0])
+            RT_predicted = torch.mm(T_predicted, R_predicted)
+            RTs.append(torch.mm(RTs[model_count], RT_predicted))
+
+            points_in_cam_axis = torch.mm(GT_RTMatrix_torch, point_cloud.T)
+
+            transformed_points = torch.mm(RTs[-1], points_in_cam_axis)
+            points_2d = torch.mm(K_final, transformed_points[:-1, :])
+
+            Z = points_2d[2, :]
+            x = (points_2d[0, :] / Z).T
+            y = (points_2d[1, :] / Z).T
+
+            x = torch.clamp(x, 0.0, IMG_WDT - 1).to(torch.long)
+            y = torch.clamp(y, 0.0, IMG_HT - 1).to(torch.long)
+
+            Z_Index = torch.where(Z > 0)[0]
+            source_map = torch.zeros((IMG_HT, IMG_WDT)).to(devices)
+            source_map[y[Z_Index], x[Z_Index]] = Z[Z_Index]
+
+            smc.imsave(
+                cf.paths["inference_img_result_path"] + "/Pretrained_KITTI_2011_09_29/predicted_" + str(
+                    image_count) + "_" + str(model_count) + ".png",
+                source_map.detach().cpu().numpy())
+
+            model_count += 1
+            source_map[0:5, :] = 0.0
+            source_map[:, 0:5] = 0.0
+            source_map[source_map.shape[0] - 5:, :] = 0.0
+            source_map[:, source_map.shape[1] - 5:] = 0.0
+            source_map = (source_map - 40.0) / 40.0
+            source_map = torch.repeat_interleave(torch.unsqueeze(source_map, dim=0), 3, dim=0)
+            source_map = torch.unsqueeze(source_map, dim=0)
+            # source_map = torch.repeat_interleave(torch.unsqueeze(source_map, dim=0), 1, dim=0)
+            source_depth_map = source_map
+
+    RT_predicted = torch.mm(transform_matrix, RTs[-1])
 
     GT_RTMatrix = np.linalg.inv(random_transform)
     tra_gt = np.array(GT_RTMatrix[:-1, 3]).T
     rot_gt = quaternion_from_matrix(torch.Tensor(GT_RTMatrix)).detach().cpu().numpy()
 
-    R_predicted = quat2mat(rotation[0])
-    T_predicted = tvector2mat(translation[0])
-    RT_predicted = torch.mm(T_predicted, R_predicted)
     rot_pre_norm = quaternion_from_matrix(RT_predicted)
     rot_pre_euler = yaw_pitch_roll(rot_pre_norm.detach().cpu().numpy())
     rot_gt_euler = yaw_pitch_roll(rot_gt)
@@ -165,10 +208,7 @@ for image_file, depth_map, pointfile, angle in zip(AICamera_image, AICamera_Poin
     translation_Y += np.abs(tra_gt[1] - tra_pre[1])
     translation_Z += np.abs(tra_gt[2] - tra_pre[2])
 
-    R_predicted = quat2mat(rotation[0])
-    T_predicted = tvector2mat(translation[0])
-    RT_predicted = torch.mm(T_predicted, R_predicted).detach().cpu().numpy()
-
+    RT_predicted = RT_predicted.detach().cpu().numpy()
     # Save Predicted Depth Map
     GT_RTMatrix = np.matmul(cam_02_transform, np.matmul(R_rect_00, velo_to_cam))
     transformed_points = np.matmul(RT_predicted, np.matmul(random_transform, np.matmul(GT_RTMatrix, points.T)))
@@ -182,7 +222,7 @@ for image_file, depth_map, pointfile, angle in zip(AICamera_image, AICamera_Poin
     for x_idx, y_idx, z_idx in zip(x, y, Z):
         if (z_idx > 0):
             cv2.circle(projected_img, (int(x_idx), int(y_idx)), 1, (255, 0, 0), -1)
-    smc.imsave(cf.paths['inference_img_result_path'] + "/Pretrained_KITTI_2011_09_29/KITTITestData_Predicted_" + str(image_count) + ".png", projected_img)
+    smc.imsave(cf.paths['inference_img_result_path'] + "/Pretrained_KITTI_2011_09_29/KITTITestData_" + str(image_count) + "_Predicted.png", projected_img)
     image_count += 1
     if count % cf.network_info['freq_print'] == 0:
         print("[ROT X] : ", rotation_X / count, " [ROT Y] : ", rotation_Y / count, " [ROT Z] : ", rotation_Z / count,

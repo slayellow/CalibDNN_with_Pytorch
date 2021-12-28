@@ -47,7 +47,7 @@ KITTI_Info = dict(
                              0.0, 1.0, 0.0, 2.163791e-01/7.215377e+02,
                              0.0, 0.0, 1.0, 2.745884e-03,
                              0.0, 0.0, 0.0, 1.0]).reshape(4,4),
-    save_checkpoint_name = "CalibDNN_KITTI_ROT20_TR2"
+    save_checkpoint_name = "CalibDNN_KITTI_ROT1.0_TR0.1"
 
 )
 
@@ -78,13 +78,26 @@ network_info = dict(
     rotation_weight=1.0,
     translation_weight=2.0,
     point_cloud_loss_weight=0.5,
-    rotation_range = 20.0,             # dataset random transformation rotation range ( 20.0, 10.0, 5.0, 2.0, 1.0 )
-    translation_range = 2.0,           # dataset random transformation translation range ( 2.0, 1.0, 0.5, 0.2, 0.1 )
+    rotation_range = 1.0,             # dataset random transformation rotation range ( 20.0, 10.0, 5.0, 2.0, 1.0 )
+    translation_range = 0.1,           # dataset random transformation translation range ( 2.0, 1.0, 0.5, 0.2, 0.1 )
     batch_size = 24,                        # batch_size take during training
-    epochs = 100,                            # total number of epoch
-    learning_rate = 0.0001,                   # learining rate        1e-4
+    epochs = 200,                            # total number of epoch
+    learning_rate = 4e-4,                   # learining rate        1e-4
     beta1 = 0.9,                            # momentum term for Adam Optimizer
     freq_print = 10,
     num_worker = 4,
-    learning_scheduler=[20, 50, 70]
+    learning_scheduler=[50, 100, 150]
+)
+
+inference_info = dict(
+    weights = ['/home/HONG/PretrainedParameter/CalibDNN/CalibDNN_KITTI_ROT20_TR2.pth',
+               '/home/HONG/PretrainedParameter/CalibDNN/CalibDNN_KITTI_ROT10_TR1.pth',
+               '/home/HONG/PretrainedParameter/CalibDNN/CalibDNN_KITTI_ROT5.0_TR0.5.pth',
+               '/home/HONG/PretrainedParameter/CalibDNN/CalibDNN_KITTI_ROT2.0_TR0.2.pth',
+               '/home/HONG/PretrainedParameter/CalibDNN/CalibDNN_KITTI_ROT1.0_TR0.1.pth'],
+    freq_print = 10,
+    num_worker = 4,
+    batch_size = 1,
+    rotation_range=20.0,  # dataset random transformation rotation range ( 20.0, 10.0, 5.0, 2.0, 1.0 )
+    translation_range=2.0,  # dataset random transformation translation range ( 2.0, 1.0, 0.5, 0.2, 0.1 )
 )
