@@ -78,14 +78,14 @@ network_info = dict(
     rotation_weight=1.0,
     translation_weight=2.0,
     point_cloud_loss_weight=0.5,
-    rotation_range = 1.0,             # dataset random transformation rotation range ( 20.0, 10.0, 5.0, 2.0, 1.0 )
-    translation_range = 0.1,           # dataset random transformation translation range ( 2.0, 1.0, 0.5, 0.2, 0.1 )
-    batch_size = 24,                        # batch_size take during training
+    rotation_range = 20.0,             # dataset random transformation rotation range ( 20.0, 10.0, 5.0, 2.0, 1.0 )
+    translation_range = 2.0,           # dataset random transformation translation range ( 2.0, 1.0, 0.5, 0.2, 0.1 )
+    batch_size = 2,                        # batch_size take during training
     epochs = 200,                            # total number of epoch
     learning_rate = 4e-4,                   # learining rate        1e-4
     beta1 = 0.9,                            # momentum term for Adam Optimizer
     freq_print = 10,
-    num_worker = 4,
+    num_worker = 0,
     learning_scheduler=[50, 100, 150]
 )
 

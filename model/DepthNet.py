@@ -122,6 +122,7 @@ class DepthNet(nn.Module):
 
     def forward(self, x):
         x = self.conv0(x)
+        x = x / 3
         x = self.bn0(x)
         x = self.relu0(x)
         x = self.maxpool0(x)

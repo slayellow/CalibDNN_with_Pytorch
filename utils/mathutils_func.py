@@ -26,19 +26,9 @@ def yaw_pitch_roll(q):
 
     return np.array([roll, pitch, yaw])
 
+
 def convert_6DoF_to_RTMatrix(rotation, translation):
-    R = mathutils.Quaternion((rotation[0], rotation[1], rotation[2], rotation[3]))
-    T = mathutils.Vector((translation[0], translation[1], translation[2]))
-
-    R = R.to_matrix()
-    R.resize_4x4()
-    T = mathutils.Matrix.Translation(T)
-
-    RT = T @ R
-    return np.array(RT)
-
-def convert_6DoF_to_RTMatrix_Inferencet_Matlab(rotation, translation):
-    R = mathutils.Quaternion((math.radians(rotation[0]), math.radians(rotation[1]), math.radians(rotation[2]), math.radians(rotation[3])))
+    R = mathutils.Quaternion((rotation[0], rotation[1], rotation[2]))
     T = mathutils.Vector((translation[0], translation[1], translation[2]))
 
     R = R.to_matrix()
@@ -52,6 +42,10 @@ def convert_6DoF_to_RTMatrix_Inferencet_Matlab(rotation, translation):
 def convert_RTMatrix_to_6DoF(matrix):
     RT = mathutils.Matrix(matrix)
     T_GT, R_GT, _ = RT.decompose()
+    R_GT = R_GT.to_euler()
+    R_GT[0] = math.degrees(R_GT[0])
+    R_GT[1] = math.degrees(R_GT[1])
+    R_GT[2] = math.degrees(R_GT[2])
     return np.array(R_GT), np.array(T_GT)
 
 
