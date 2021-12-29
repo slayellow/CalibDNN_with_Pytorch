@@ -74,20 +74,20 @@ Changwon_Info = dict(
                                      0.0, 0.0, 0.0, 1.0]).reshape(4, 4)
 )
 
-network_info = dict(
-    rotation_weight=1.0,
-    translation_weight=2.0,
-    point_cloud_loss_weight=0.5,
-    rotation_range = 20.0,             # dataset random transformation rotation range ( 20.0, 10.0, 5.0, 2.0, 1.0 )
-    translation_range = 2.0,           # dataset random transformation translation range ( 2.0, 1.0, 0.5, 0.2, 0.1 )
-    batch_size = 2,                        # batch_size take during training
-    epochs = 200,                            # total number of epoch
-    learning_rate = 4e-4,                   # learining rate        1e-4
-    beta1 = 0.9,                            # momentum term for Adam Optimizer
-    freq_print = 10,
-    num_worker = 0,
-    learning_scheduler=[50, 100, 150]
-)
+network_info = {'alpha' : 0.8,
+                'transformation_loss_weight': 1.0,
+                'depth_map_loss_weight' : 1.0,
+                'point_cloud_loss_weight': 1.0,
+                'rotation_range': 20.0,
+                'translation_range': 2.0,
+                'batch_size': 8,
+                'epochs': 25,
+                'learning_rate': 1e-3,
+                'beta1': 0.9,
+                'freq_print': 10,
+                'num_worker': 4,
+                'learning_scheduler': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                                       23, 24]}
 
 inference_info = dict(
     weights = ['/home/HONG/PretrainedParameter/CalibDNN/CalibDNN_KITTI_ROT20_TR2.pth',

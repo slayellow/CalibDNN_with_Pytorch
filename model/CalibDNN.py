@@ -102,7 +102,7 @@ class CalibDNN(nn.Module):
         tr = self.dropout(tr)
         tr = self.fcl_tr(tr)
 
-        return rot, tr
+        return set_concat([rot, tr])
 
     def get_name(self):
         return self.model_name

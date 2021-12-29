@@ -5,28 +5,6 @@ import torch
 import torch.nn.functional as F
 
 
-def yaw_pitch_roll(q):
-    qw = q[0]
-    qx = q[1]
-    qy = q[2]
-    qz = q[3]
-
-    if 2 * (qx * qz - qw * qy) >= 0.94:  # Preventing gimbal lock for north pole
-        yaw = np.arctan2(qx * qy - qw * qz, qx * qz + qw * qy)
-        roll = 0
-    elif 2 * (qx * qz - qw * qy) <= -0.94:  # Preventing gimbal lock for south pole
-        yaw = -np.arctan2(qx * qy - qw * qz, qx * qz + qw * qy)
-        roll = 0
-    else:
-        yaw = np.arctan2(qy * qz + qw * qx,
-                         1 / 2 - (qx ** 2 + qy ** 2))
-        roll = np.arctan2(qx * qy - qw * qz,
-                          1 / 2 - (qy ** 2 + qz ** 2))
-    pitch = np.arcsin(-2 * (qx * qz - qw * qy))
-
-    return np.array([roll, pitch, yaw])
-
-
 def convert_6DoF_to_RTMatrix(rotation, translation):
     R = mathutils.Quaternion((rotation[0], rotation[1], rotation[2]))
     T = mathutils.Vector((translation[0], translation[1], translation[2]))
@@ -43,9 +21,6 @@ def convert_RTMatrix_to_6DoF(matrix):
     RT = mathutils.Matrix(matrix)
     T_GT, R_GT, _ = RT.decompose()
     R_GT = R_GT.to_euler()
-    R_GT[0] = math.degrees(R_GT[0])
-    R_GT[1] = math.degrees(R_GT[1])
-    R_GT[2] = math.degrees(R_GT[2])
     return np.array(R_GT), np.array(T_GT)
 
 
@@ -141,24 +116,6 @@ def invert_pose(R, T):
     RT.invert_safe()
     T_GT, R_GT, _ = RT.decompose()
     return R_GT.normalized(), T_GT
-
-
-def merge_inputs(queries):
-    point_clouds = []
-    imgs = []
-    reflectances = []
-    returns = {key: default_collate([d[key] for d in queries]) for key in queries[0]
-               if key != 'point_cloud' and key != 'rgb' and key != 'reflectance'}
-    for input in queries:
-        point_clouds.append(input['point_cloud'])
-        imgs.append(input['rgb'])
-        if 'reflectance' in input:
-            reflectances.append(input['reflectance'])
-    returns['point_cloud'] = point_clouds
-    returns['rgb'] = imgs
-    if len(reflectances) > 0:
-        returns['reflectance'] = reflectances
-    return returns
 
 
 def quaternion_from_matrix(matrix):

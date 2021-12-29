@@ -1,9 +1,24 @@
 # CalibDNN_with_Pytorch
-Pytorch를 활용한 CalibDNN 구현해보기
 
 
-## Data Preprocessing
-cd ../path/to/dataset_directory
-bash ../path/to/code_folder/dataset/dataset_builder_parallel.sh
-cd ../path/to/CalibNet/code
-python dataset/parser.py ../dataset_directory/2011_09_26/
+## Environment
+
+Ubuntu 20.04
+Docker
+
+torch               1.8.1+cu111  
+torchvision         0.9.1+cu111  
+torchinfo  
+torchsummary
+
+
+
+## Dataset
+
+KITTI Dataset(2011_09_26)  
+
+## Model
+
+ResNet-18 - RGB Image Input   
+DepthNet-18 - Depth Map Image Input  
+CalibDNN - Rotation(deg), Translation(m) Output

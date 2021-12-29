@@ -41,15 +41,14 @@ print("------------ Model Setting Finish ----------------")
 print("")
 K_final = torch.tensor(cf.KITTI_Info["K"], dtype=torch.float32).to(devices)
 print("------------ Loss Function Setting Start ----------------")
-loss_function = TotalLoss(rotation_weight=cf.network_info['rotation_weight'],
-                          translation_weight=cf.network_info['translation_weight'],
-                          point_cloud_loss_weight=cf.network_info['point_cloud_loss_weight']).to(devices)
+loss_function = TotalLoss(alpha=cf.network_info['alpha']).to(devices)
+point_cloud_loss_weight = torch.tensor(cf.network_info['point_cloud_loss_weight']).to(devices)
+transformation_loss_weight = torch.tensor(cf.network_info['transformation_loss_weight']).to(devices)
 print("------------ Loss Function Setting Finish ----------------")
 learning_rate = cf.network_info['learning_rate']
 
 optimizer = set_Adam(model, learning_rate=learning_rate)
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=cf.network_info["learning_scheduler"], gamma=0.5)
-
 
 if os.path.isfile(os.path.join(pretrained_path, cf.KITTI_Info["save_checkpoint_name"] + '.pth')):
     print("Pretrained Model Open : ", model.get_name() + ".pth")
@@ -65,6 +64,7 @@ print("------------ Train Start ----------------")
 train_iteration_10_loss = list()
 valid_iteration_10_loss = list()
 for epoch in range(start_epoch, cf.network_info['epochs']):
+
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -80,7 +80,7 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
 
         source_depth_map = sample_bathced['source_depth_map']
         source_image = sample_bathced['source_image']
-        point_cloud = sample_bathced['point_cloud']
+        point_cloud = sample_bathced['point_cloud'].to(torch.float32)
         rotation_vector = sample_bathced['rotation_vector'].to(torch.float32)
         translation_vector = sample_bathced['translation_vector'].to(torch.float32)
         transform_matrix = sample_bathced['transform_matrix'].to(torch.float32)
@@ -95,10 +95,10 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
 
         optimizer.zero_grad()
 
-        rotation, translation = model(source_image, source_depth_map)
+        rtvec = model(source_image, source_depth_map)
 
         loss = loss_function(point_cloud, translation_vector, rotation_vector,
-                             translation, rotation, transform_matrix)
+                             rtvec, transform_matrix, transformation_loss_weight, point_cloud_loss_weight)
 
         if not torch.isfinite(loss['total_loss']):
             print("Loss Function --> Non-Finite Loss, Don't Calculate Loss")
@@ -141,7 +141,7 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
 
         source_depth_map = sample_bathced['source_depth_map']
         source_image = sample_bathced['source_image']
-        point_cloud = sample_bathced['point_cloud']
+        point_cloud = sample_bathced['point_cloud'].to(torch.float32)
         rotation_vector = sample_bathced['rotation_vector'].to(torch.float32)
         translation_vector = sample_bathced['translation_vector'].to(torch.float32)
         transform_matrix = sample_bathced['transform_matrix'].to(torch.float32)
@@ -156,10 +156,10 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
 
         optimizer.zero_grad()
 
-        rotation, translation = model(source_image, source_depth_map)
+        rtvec = model(source_image, source_depth_map)
 
         loss = loss_function(point_cloud, translation_vector, rotation_vector,
-                             translation, rotation, transform_matrix)
+                             rtvec, transform_matrix, transformation_loss_weight, point_cloud_loss_weight)
 
         valid_losses.update(loss['total_loss'].item(), source_depth_map.size(0))
 
