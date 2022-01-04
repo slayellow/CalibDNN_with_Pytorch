@@ -40,7 +40,8 @@ class TotalLoss(nn.Module):
             error.clamp(100.)
             point_clouds_loss += error.mean()
 
-        total_loss = transformation_loss + transformation_weight * (point_clouds_loss / gt_translation_vector.shape[0])
+        total_loss = transformation_loss * transformation_weight + point_cloud_weight * \
+                     (point_clouds_loss / gt_translation_vector.shape[0])
         self.loss['total_loss'] = total_loss
         self.loss['transformation_loss'] = transformation_loss
         self.loss['point_clouds_loss'] = point_clouds_loss / gt_translation_vector.shape[0]

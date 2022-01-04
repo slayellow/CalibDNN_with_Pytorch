@@ -62,9 +62,6 @@ class CalibDNNDataset(Dataset):
         # 2021.12.29. Add
         image_to_tensor = transforms.ToTensor()
         image_normalization = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        if self.training:
-            color_transform = transforms.ColorJitter(0.1, 0.1, 0.1)
-            source_img = color_transform(source_img)
         source_img = image_to_tensor(source_img)
         source_img = image_normalization(source_img)
 

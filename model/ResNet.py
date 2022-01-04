@@ -6,16 +6,15 @@ import warnings
 
 
 class BasicBlock(nn.Module):
-    expansions = 1
+    expansion = 1
 
-    def __init__(self, in_channels, out_channels, stride=1, downsample=None):
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
         super(BasicBlock, self).__init__()
-        self.conv1 = set_conv(in_channels, out_channels, kernel=3, strides=stride, padding=1)
-        self.bn1 = set_batch_normalization(out_channels)
-        self.relu = set_relu(True)
-
-        self.conv2 = set_conv(out_channels, out_channels, kernel=3, padding=1)
-        self.bn2 = set_batch_normalization(out_channels)
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
         self.downsample = downsample
         self.stride = stride
 
@@ -25,7 +24,6 @@ class BasicBlock(nn.Module):
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
-
         out = self.conv2(out)
         out = self.bn2(out)
 
@@ -39,17 +37,17 @@ class BasicBlock(nn.Module):
 
 
 class Bottleneck(nn.Module):
-    expansions = 4
+    expansion = 4
 
-    def __init__(self, in_channels, out_channels, stride=1, downsample=None):
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
         super(Bottleneck, self).__init__()
-        self.conv1 = set_conv(in_channels, out_channels, kernel=1, padding=0)
-        self.bn1 = set_batch_normalization(out_channels)
-        self.conv2 = set_conv(out_channels, out_channels, kernel=3, strides=stride, padding=1)
-        self.bn2 = set_batch_normalization(out_channels)
-        self.conv3 = set_conv(out_channels, out_channels * 4, kernel=1, padding=0)
-        self.bn3 = set_batch_normalization(out_channels * 4)
-        self.relu = set_relu(True)
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(planes * 4)
+        self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
         self.stride = stride
 
@@ -76,6 +74,7 @@ class Bottleneck(nn.Module):
         return out
 
 
+
 class ResNet(nn.Module):
     # ResNet-18     : BasicBlock        :   [2, 2, 2, 2]
     # ResNet-34     : BasicBlock        :   [3, 4, 6, 3]
@@ -83,7 +82,7 @@ class ResNet(nn.Module):
     # ResNet-101    : BottleNeckBlock   :   [3, 4, 23, 3]
     # ResNet-152    : BottleNeckBlock   :   [3, 4, 36, 3]
     # Channel       : [64, 128, 256, 512]
-    def __init__(self, layer_num, classes):
+    def __init__(self, layer_num, num_classes=1000):
         super(ResNet, self).__init__()
 
         self.model_name = 'ResNet_{}'.format(layer_num)
@@ -95,81 +94,75 @@ class ResNet(nn.Module):
                   101: (3, 4, 23, 3),
                   152: (3, 4, 36, 3)}
         channels = (64, 128, 256, 512)
-
         in_channel = 3
         self.inplanes = 64
 
         if layer_num == 18 or layer_num == 34:
-            self.block = BasicBlock
+            block = BasicBlock
         elif layer_num == 50 or layer_num == 101 or layer_num == 152:
-            self.block = Bottleneck
+            block = Bottleneck
         else:
-            warnings.warn("클래스가 구성하는 Layer 갯수와 맞지 않습니다.")
+            print("Not Correct Model Layer Number")
 
-        self.conv0 = set_conv(in_channel, channels[0], kernel=7, strides=2, padding=3)
-        self.bn0 = set_batch_normalization(channels[0])
-        self.relu0 = set_relu(True)
-        self.maxpool0 = set_max_pool(kernel=3, strides=2, padding=1)
+        self.conv1 = nn.Conv2d(in_channel, channels[0], kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(channels[0])
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
         # Block
-        self.layer1 = self._make_layer(self.block, channels[0], blocks[layer_num][0])
-        self.layer2 = self._make_layer(self.block, channels[1], blocks[layer_num][1], stride=2)
-        self.layer3 = self._make_layer(self.block, channels[2], blocks[layer_num][2], stride=2)
-        self.layer4 = self._make_layer(self.block, channels[3], blocks[layer_num][3], stride=2)
+        self.layer1 = self._make_layer(block, channels[0], blocks[layer_num][0])
+        self.layer2 = self._make_layer(block, channels[1], blocks[layer_num][1], stride=2)
+        self.layer3 = self._make_layer(block, channels[2], blocks[layer_num][2], stride=2)
+        self.layer4 = self._make_layer(block, channels[3], blocks[layer_num][3], stride=2)
 
-        # ***** Not Used ***** #
-        self.gap = set_avg_pool(kernel=7)
-        self.fcl = set_dense(channels[3] * self.block.expansions, classes)
+        self.avgpool = nn.AvgPool2d(7, stride=1)
+        self.fc = nn.Linear(channels[3] * block.expansion, num_classes)
+
+        # Initialize Weight
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+    def get_name(self):
+        return self.model_name
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv2d(self.inplanes, planes * block.expansion, kernel_size=1,
+                          stride=stride, bias=False),
+                nn.BatchNorm2d(planes * block.expansion),
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+
+        return nn.Sequential(*layers)
 
     def forward(self, x):
-        x = self.conv0(x)
-        x = self.bn0(x)
-        x = self.relu0(x)
-        x = self.maxpool0(x)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
 
-        # Block
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
 
-        # ***** Not Used ***** #
-        # x = self.gap(x)
+        # x = self.avgpool(x)
         # x = x.view(x.size(0), -1)
-        # x = self.fcl(x)
+        # x = self.fc(x)
+
         return x
-
-    def get_name(self):
-        return self.model_name
-
-    def initialize_weights(self, init_weights):
-        if init_weights is True:
-            for m in self.modules():
-                if isinstance(m, nn.Conv2d):
-                    n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                    m.weight.data.normal_(0, math.sqrt(2. / n))
-
-                elif isinstance(m, nn.BatchNorm2d):
-                    m.weight.data.fill_(1)
-
-                elif isinstance(m, nn.Linear):
-                    m.weight.data.normal_(0, 0.01)
-
-    def _make_layer(self, block, planes, blocks, stride=1):
-        downsample = None
-        if stride != 1 or self.inplanes != planes * self.block.expansions:
-            downsample = nn.Sequential(
-                nn.Conv2d(self.inplanes, planes * self.block.expansions, kernel_size=1,
-                          stride=stride, bias=False),
-                nn.BatchNorm2d(planes * self.block.expansions),
-            )
-
-        layers = []
-        layers.append(self.block(self.inplanes, planes, stride, downsample))
-        self.inplanes = planes * self.block.expansions
-        for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes))
-
-        return nn.Sequential(*layers)
 
 
 def ResNet18(layer_num, classes):
@@ -178,11 +171,8 @@ def ResNet18(layer_num, classes):
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
         print('ResNet18 : Pretrained Model!')
-        model.initialize_weights(init_weights=False)
         checkpoint = load_weight_file(os.path.join(pretrained_path, model.get_name() + '.pth'))
         load_weight_parameter(model, checkpoint['state_dict'])
     else:
         print('ResNet18 : No Pretrained Model!')
-        model.initialize_weights(init_weights=True)
-
     return model
