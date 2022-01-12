@@ -47,7 +47,7 @@ KITTI_Info = dict(
                              0.0, 1.0, 0.0, 2.163791e-01/7.215377e+02,
                              0.0, 0.0, 1.0, 2.745884e-03,
                              0.0, 0.0, 0.0, 1.0]).reshape(4,4),
-    save_checkpoint_name = "CalibDNN_KITTI_ROT20.0_TR2.0"
+    save_checkpoint_name = "CalibDNN_KITTI_ROT1.0_TR0.1"
 
 )
 
@@ -78,8 +78,8 @@ network_info = {'alpha' : 0.8,
                 'transformation_loss_weight': 1.0,
                 'depth_map_loss_weight' : 1.0,
                 'point_cloud_loss_weight': 0.5,
-                'rotation_range': 20.0,
-                'translation_range': 2.0,
+                'rotation_range': 1.0,
+                'translation_range': 0.1,
                 'batch_size': 24,
                 'epochs': 200,
                 'learning_rate': 3e-4,
@@ -93,10 +93,11 @@ inference_info = dict(
                '/home/HONG/PretrainedParameter/CalibDNN/CalibDNN_KITTI_ROT10.0_TR1.0.pth',
                '/home/HONG/PretrainedParameter/CalibDNN/CalibDNN_KITTI_ROT5.0_TR0.5.pth',
                '/home/HONG/PretrainedParameter/CalibDNN/CalibDNN_KITTI_ROT2.0_TR0.2.pth',
-               '/home/HONG/PretrainedParameter/CalibDNN/CalibDNN_KITTI_ROT1.0_TR0.1.pth'],
+               '/home/HONG/PretrainedParameter/CalibDNN/CalibDNN_KITTI_ROT1.0_TR0.1.pth'
+               ],
     freq_print = 10,
     num_worker = 4,
-    batch_size = 1,
+    batch_size = 2,
     rotation_range=20.0,  # dataset random transformation rotation range ( 20.0, 10.0, 5.0, 2.0, 1.0 )
     translation_range=2.0,  # dataset random transformation translation range ( 2.0, 1.0, 0.5, 0.2, 0.1 )
 )

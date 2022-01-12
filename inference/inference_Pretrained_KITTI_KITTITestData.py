@@ -1,15 +1,15 @@
 import torch
-
+import numpy as np
 from model.CalibDNN import *
-from model.loss_changwon import *
 from utils.AverageMeter import *
 import imageio as smc
 from natsort import natsorted as ns
 import glob, os
 import cv2
-from scipy import io
+import torchgeometry as tgm
 import torchvision.transforms as transforms
-
+from PIL import Image
+from utils.mathutils_func import *
 
 dataset_path = '/data/2011_09_29/'
 
@@ -98,47 +98,69 @@ for image_file, depth_map, pointfile, angle in zip(AICamera_image, AICamera_Poin
     file = filename.split('/')
     input_image = smc.imread(image_file)
     points = np.loadtxt(pointfile)
-    points = points[:90000, :3]
+    points = points[:150000, :3]
     ones_col = np.ones(shape=(points.shape[0], 1))
-    points = np.hstack((points,ones_col))
+    points = np.hstack((points, ones_col))
 
     # Ground Truth Projection Image Get
     GT_RTMatrix = np.matmul(cam_02_transform, np.matmul(R_rect_00, velo_to_cam))
     points_2d_Gt = np.matmul(K, np.matmul(GT_RTMatrix, points.T)[:-1, :])
-    Z = points_2d_Gt[2,:]
-    x = (points_2d_Gt[0,:]/Z).T
-    y = (points_2d_Gt[1,:]/Z).T
-    x = np.clip(x, 0.0, input_image.shape[1] - 1)
-    y = np.clip(y, 0.0, input_image.shape[0] - 1)
+    Z = points_2d_Gt[2, :]
+    x = (points_2d_Gt[0, :] / (Z + 1e-10)).T
+    y = (points_2d_Gt[1, :] / (Z + 1e-10)).T
+    mask = (x > 0) & (x < cf.KITTI_Info["WIDTH"]) & (y > 0) & (y < cf.KITTI_Info["HEIGHT"]) & (Z > 0)
+    x = x[mask].astype(np.int32)
+    y = y[mask].astype(np.int32)
+    Z = Z[mask]
     reprojected_img = input_image.copy()
     for x_idx, y_idx,z_idx in zip(x, y, Z):
         if(z_idx>0):
             cv2.circle(reprojected_img, (int(x_idx), int(y_idx)), 1, (255, 0, 0), -1)
     smc.imsave(cf.paths['inference_img_result_path'] + "/Pretrained_KITTI_2011_09_29/KITTITestData_" + str(image_count) +"_Target"  + ".png", reprojected_img)
 
+    omega_x = np.random.uniform(-20, 20) * (3.141592 / 180.0)
+    omega_y = np.random.uniform(-20, 20) * (3.141592 / 180.0)
+    omega_z = np.random.uniform(-20, 20) * (3.141592 / 180.0)
+    tr_x = np.random.uniform(-2, 2)
+    tr_y = np.random.uniform(-2, 2)
+    tr_z = np.random.uniform(-2, 2)
+
+    r_org = mathutils.Euler((omega_x, omega_y, omega_z))
+    t_org = mathutils.Vector((tr_x, tr_y, tr_z))
+
+    R = r_org.to_matrix()
+    R.resize_4x4()
+    T = mathutils.Matrix.Translation(t_org)
+    RT = T @ R
+
+    random_transform = np.array(RT)
+    points_in_cam_axis = np.matmul(cf.KITTI_Info["R_rect_00"], (np.matmul(cf.KITTI_Info["velo_to_cam"], points.T)))
+    transformed_points = np.matmul(random_transform, points_in_cam_axis)
+    points_2d = np.matmul(cf.KITTI_Info["K"],
+                          np.matmul(cf.KITTI_Info["cam_02_transform"], transformed_points)[:-1, :])
+
+    Z = points_2d[2, :]
+    x = (points_2d[0, :] / (Z + 1e-10)).T
+    y = (points_2d[1, :] / (Z + 1e-10)).T
+    mask = (x > 0) & (x < cf.KITTI_Info["WIDTH"]) & (y > 0) & (y < cf.KITTI_Info["HEIGHT"]) & (Z > 0)
+    x = x[mask].astype(np.int)
+    y = y[mask].astype(np.int)
+    Z = Z[mask]
+    source_map = np.zeros((cf.KITTI_Info["HEIGHT"], cf.KITTI_Info["WIDTH"]))
+    source_map[y, x] = Z
+    # smc.imsave("depth_map_predicted.png", source_map.astype(np.uint8))
+    source_map = np.repeat(np.expand_dims(source_map, axis=2), 3, axis=2)
+    source_map = (source_map - 40.0) / 40.0
+    source_map = np.float32(source_map)
+    source_map = transform(source_map).to(devices)
+    source_map = torch.unsqueeze(source_map, 0)
+
     # Predict
     source_image = input_image.copy()
-    source_image[0:5, :] = 0.0
-    source_image[:, 0:5] = 0.0
-    source_image[source_image.shape[0] - 5:, :] = 0.0
-    source_image[:, source_image.shape[1] - 5:] = 0.0
     source_image = (source_image - 127.5) / 127.5
     source_image = transform(source_image).to(devices)
     source_image = torch.unsqueeze(source_image, 0)
 
-    init_depthmap = cv2.imread(depth_map, flags=cv2.IMREAD_GRAYSCALE)
-    source_map = init_depthmap.copy()
-    source_map = np.repeat(np.expand_dims(source_map, axis=2), 3, axis=2)
-    source_map[0:5, :] = 0.0
-    source_map[:, 0:5] = 0.0
-    source_map[source_map.shape[0] - 5:, :] = 0.0
-    source_map[:, source_map.shape[1] - 5:] = 0.0
-    source_map = (source_map - 40.0) / 40.0
-    source_map = transform(source_map).to(devices)
-    source_map = torch.unsqueeze(source_map, 0)
-
-    angle = np.float32(angle)
-    random_transform = angle.reshape(4, 4)
     random_transform_inv = np.linalg.inv(random_transform)
     transform_matrix = torch.tensor(random_transform_inv, dtype=torch.float32).to(devices)
     point_cloud = torch.tensor(points, dtype=torch.float32).to(devices)
@@ -151,27 +173,23 @@ for image_file, depth_map, pointfile, angle in zip(AICamera_image, AICamera_Poin
     RTs = [transform_matrix.inverse()]
     with torch.no_grad():
         for model in models:
-            rotation, translation = model(source_image, source_depth_map)
-            R_predicted = quat2mat(rotation[0])
-            T_predicted = tvector2mat(translation[0])
-            RT_predicted = torch.mm(T_predicted, R_predicted)
-            RTs.append(torch.mm(RTs[model_count], RT_predicted))
+            rtvec = model(source_image, source_depth_map)
+            RT_predicted = tgm.rtvec_to_pose(rtvec)
+            RTs.append(torch.mm(RTs[model_count], RT_predicted[0]))
 
             points_in_cam_axis = torch.mm(GT_RTMatrix_torch, point_cloud.T)
-
             transformed_points = torch.mm(RTs[-1], points_in_cam_axis)
             points_2d = torch.mm(K_final, transformed_points[:-1, :])
 
             Z = points_2d[2, :]
-            x = (points_2d[0, :] / Z).T
-            y = (points_2d[1, :] / Z).T
-
-            x = torch.clamp(x, 0.0, IMG_WDT - 1).to(torch.long)
-            y = torch.clamp(y, 0.0, IMG_HT - 1).to(torch.long)
-
-            Z_Index = torch.where(Z > 0)[0]
-            source_map = torch.zeros((IMG_HT, IMG_WDT)).to(devices)
-            source_map[y[Z_Index], x[Z_Index]] = Z[Z_Index]
+            x = (points_2d[0, :] / (Z + 1e-10)).T
+            y = (points_2d[1, :] / (Z + 1e-10)).T
+            mask = (x > 0) & (x < cf.KITTI_Info["WIDTH"]) & (y > 0) & (y < cf.KITTI_Info["HEIGHT"]) & (Z > 0)
+            x = x[mask].to(torch.long)
+            y = y[mask].to(torch.long)
+            Z = Z[mask]
+            source_map = torch.zeros((cf.KITTI_Info["HEIGHT"], cf.KITTI_Info["WIDTH"])).to(devices)
+            source_map[y, x] = Z
 
             smc.imsave(
                 cf.paths["inference_img_result_path"] + "/Pretrained_KITTI_2011_09_29/predicted_" + str(
@@ -179,28 +197,17 @@ for image_file, depth_map, pointfile, angle in zip(AICamera_image, AICamera_Poin
                 source_map.detach().cpu().numpy())
 
             model_count += 1
-            source_map[0:5, :] = 0.0
-            source_map[:, 0:5] = 0.0
-            source_map[source_map.shape[0] - 5:, :] = 0.0
-            source_map[:, source_map.shape[1] - 5:] = 0.0
-            source_map = (source_map - 40.0) / 40.0
             source_map = torch.repeat_interleave(torch.unsqueeze(source_map, dim=0), 3, dim=0)
             source_map = torch.unsqueeze(source_map, dim=0)
-            # source_map = torch.repeat_interleave(torch.unsqueeze(source_map, dim=0), 1, dim=0)
+            source_map = (source_map - 40.0) / 40.0
             source_depth_map = source_map
 
-    RT_predicted = torch.mm(transform_matrix, RTs[-1])
-
+    predicted_Matrix = torch.mm(transform_matrix, RTs[-1]).detach().cpu().numpy()
     GT_RTMatrix = np.linalg.inv(random_transform)
-    tra_gt = np.array(GT_RTMatrix[:-1, 3]).T
-    rot_gt = quaternion_from_matrix(torch.Tensor(GT_RTMatrix)).detach().cpu().numpy()
-
-    rot_pre_norm = quaternion_from_matrix(RT_predicted)
-    rot_pre_euler = yaw_pitch_roll(rot_pre_norm.detach().cpu().numpy())
-    rot_gt_euler = yaw_pitch_roll(rot_gt)
-    rot_pre_degree = np.rad2deg(rot_pre_euler)
-    rot_gt_degree = np.rad2deg(rot_gt_euler)
-    tra_pre = translation[0].detach().cpu().numpy()
+    rot_gt, tra_gt = convert_RTMatrix_to_6DoF(GT_RTMatrix)
+    rot_pre, tra_pre = convert_RTMatrix_to_6DoF(predicted_Matrix)
+    rot_pre_degree = np.rad2deg(rot_pre)
+    rot_gt_degree = np.rad2deg(rot_gt)
     rotation_X += np.abs(rot_gt_degree[0] - rot_pre_degree[0])
     rotation_Y += np.abs(rot_gt_degree[1] - rot_pre_degree[1])
     rotation_Z += np.abs(rot_gt_degree[2] - rot_pre_degree[2])
@@ -208,16 +215,18 @@ for image_file, depth_map, pointfile, angle in zip(AICamera_image, AICamera_Poin
     translation_Y += np.abs(tra_gt[1] - tra_pre[1])
     translation_Z += np.abs(tra_gt[2] - tra_pre[2])
 
-    RT_predicted = RT_predicted.detach().cpu().numpy()
+    RT_predicted = RTs[-1].detach().cpu().numpy()
     # Save Predicted Depth Map
     GT_RTMatrix = np.matmul(cam_02_transform, np.matmul(R_rect_00, velo_to_cam))
-    transformed_points = np.matmul(RT_predicted, np.matmul(random_transform, np.matmul(GT_RTMatrix, points.T)))
+    transformed_points = np.matmul(RT_predicted, np.matmul(GT_RTMatrix, points.T))
     points_2d_Init = np.matmul(K, transformed_points[:-1, :])
     Z = points_2d_Init[2, :]
-    x = (points_2d_Init[0, :] / Z).T
-    y = (points_2d_Init[1, :] / Z).T
-    x = np.clip(x, 0.0, input_image.shape[1] - 1)
-    y = np.clip(y, 0.0, input_image.shape[0] - 1)
+    x = (points_2d_Init[0, :] / (Z + 1e-10)).T
+    y = (points_2d_Init[1, :] / (Z + 1e-10)).T
+    mask = (x > 0) & (x < cf.KITTI_Info["WIDTH"]) & (y > 0) & (y < cf.KITTI_Info["HEIGHT"]) & (Z > 0)
+    x = x[mask].astype(np.int32)
+    y = y[mask].astype(np.int32)
+    Z = Z[mask].astype(np.int32)
     projected_img = input_image.copy()
     for x_idx, y_idx, z_idx in zip(x, y, Z):
         if (z_idx > 0):
